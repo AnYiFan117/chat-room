@@ -33,9 +33,9 @@ const decodeUtf8 = (bytes: Uint8Array): string => {
     return textDecoder.decode(bytes)
   }
   let ascii = ''
-  for (let index = 0; index < bytes.length; index += 1) {
-    ascii += String.fromCharCode(bytes[index])
-  }
+  bytes.forEach((byte) => {
+    ascii += String.fromCharCode(byte)
+  })
   return decodeURIComponent(escape(ascii))
 }
 
@@ -101,9 +101,9 @@ const createKeyStream = (roomId: string) => {
 const xorBytes = (roomId: string, source: Uint8Array): Uint8Array => {
   const nextByte = createKeyStream(roomId)
   const result = new Uint8Array(source.length)
-  for (let index = 0; index < source.length; index += 1) {
-    result[index] = source[index] ^ nextByte()
-  }
+  source.forEach((value, index) => {
+    result[index] = value ^ nextByte()
+  })
   return result
 }
 
@@ -158,6 +158,14 @@ interface RoomSession {
 }
 
 const normalizeRoomId = (roomId: string) => roomId.trim().toUpperCase()
+
+const resolveSignalingUrls = (roomId: string) =>
+  SIGNALING_ENDPOINTS.map((endpoint) => {
+    if (endpoint.includes('<id>')) {
+      return endpoint.replace('<id>', encodeURIComponent(roomId))
+    }
+    return endpoint
+  })
 
 const generateRoomId = () => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto && typeof crypto.randomUUID === 'function') {
@@ -384,7 +392,7 @@ export const useRoomStore = defineStore('room', {
       const doc = markRaw(new Y.Doc())
       const provider = markRaw(
         new WebrtcProvider(roomId, doc, {
-          signaling: SIGNALING_ENDPOINTS,
+          signaling: resolveSignalingUrls(roomId),
         })
       )
 
