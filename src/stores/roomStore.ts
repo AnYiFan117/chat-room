@@ -428,6 +428,14 @@ export const useRoomStore = defineStore('room', {
       const provider = markRaw(
         new WebrtcProvider(roomId, doc, {
           signaling: resolveSignalingUrls(roomId),
+          peerOpts: {
+            config:{
+              iceServers:[
+                {urls: 'stun:stun.l.google.com:19302'},
+                {urls: 'turn:8.152.98.245:3478', username: 'anyifan', credential: 'askayf010922'}
+              ]
+            }
+          }
         })
       )
 
