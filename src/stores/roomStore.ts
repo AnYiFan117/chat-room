@@ -8,20 +8,6 @@ const DEFAULT_USERNAME = '匿名旅人'
 
 const FALLBACK_SIGNALING_ENDPOINT = 'ws://8.152.98.245:23333/signal?room=<id>'
 
-const debugLog = (...args: unknown[]) => {
-  if (typeof console === 'undefined') return
-  const prefix = '[RoomStore]'
-  if ((import.meta.env?.MODE ?? import.meta.env?.NODE_ENV) === 'development') {
-    console.info(prefix, ...args)
-    return
-  }
-  if (typeof console.debug === 'function') {
-    console.debug(prefix, ...args)
-    return
-  }
-  console.info(prefix, ...args)
-}
-
 const resolveEnvSignalingEndpoints = (): string[] => {
   const raw =
     import.meta.env.VITE_SIGNALING_ENDPOINTS ?? import.meta.env.VITE_SIGNALING_ENDPOINT ?? ''
@@ -367,11 +353,9 @@ export const useRoomStore = defineStore('room', {
 
       let session = this.sessions[normalizedId]
       if (!session) {
-        debugLog('正在为房间建立新会话', { roomId: normalizedId, user })
         session = this.initializeSession(normalizedId, user)
         this.sessions[normalizedId] = session
       } else {
-        debugLog('复用现有会话并更新本地 awareness', { roomId: normalizedId, user })
         setLocalAwareness(session.provider, user, session.localJoinedAt)
       }
 
@@ -399,20 +383,9 @@ export const useRoomStore = defineStore('room', {
       const normalizedId = normalizeRoomId(roomId)
       const session = this.sessions[normalizedId]
       if (!session) return
-      console.log('[Yjs] 发送消息前的状态:', {
-        connected: session.provider.connected,
-        roomSynced: session.provider.room?.synced,
-        webrtcConns: session.provider.room?.webrtcConns.size ?? 0
-    })
 
       const trimmedContent = payload.content.trim()
       if (!trimmedContent) return
-
-      debugLog('发送消息并写入 Yjs 文档', {
-        roomId: normalizedId,
-        userId: payload.userId,
-        previousDocLength: session.yMessages.length,
-      })
 
       session.yMessages.push([
         {
@@ -425,17 +398,12 @@ export const useRoomStore = defineStore('room', {
           encrypted: true,
         },
       ])
-      debugLog('消息写入完成', {
-        roomId: normalizedId,
-        newDocLength: session.yMessages.length,
-      })
     },
     updateLocalUsername(roomId: string, user: { id: string; username: string }) {
       const normalizedId = normalizeRoomId(roomId)
       const session = this.sessions[normalizedId]
       if (!session) return
 
-      debugLog('更新本地 awareness 用户信息', { roomId: normalizedId, user })
       setLocalAwareness(session.provider, user, session.localJoinedAt)
     },
     recordSystemMessage(roomId: string, content: string) {
@@ -454,36 +422,32 @@ export const useRoomStore = defineStore('room', {
           encrypted: true,
         },
       ])
-      debugLog('记录系统消息', { roomId: normalizedId, content })
     },
     initializeSession(roomId: string, user: { id: string; username: string }) {
       const doc = markRaw(new Y.Doc())
+      
+      // 定义 ICE 服务器配置
+      const iceServers: RTCIceServer[] = [
+        {urls: 'stun:8.152.98.245:3478', username: 'anyifan', credential: 'askayf010922'},
+        {urls: 'turn:8.152.98.245:3478?transport=tcp', username: 'anyifan', credential: 'askayf010922'},
+        {urls: 'turn:8.152.98.245:3478?transport=udp', username: 'anyifan', credential: 'askayf010922'}
+      ]
+
       const provider = markRaw(
         new WebrtcProvider(roomId, doc, {
-            signaling: ['wss://8.152.98.245/signal?room='+roomId],
-            peerOpts: {
-                trickle: true,
-                config:{
-                    iceTransportPolicy: 'relay',
-                iceServers:[
-                    // {urls: 'stun:stun.l.google.com:19302'},
-                    {urls: 'stun:8.152.98.245:3478', username: 'anyifan', credential: 'askayf010922'},
-                    {urls: 'turn:8.152.98.245:3478?transport=tcp', username: 'anyifan', credential: 'askayf010922'},
-                    {urls: 'turn:8.152.98.245:3478?transport=udp', username: 'anyifan', credential: 'askayf010922'}
-
-                ]
-                }
+          signaling: ['wss://8.152.98.245/signal?room='+roomId],
+          peerOpts: {
+            trickle: true,
+            config: {
+              iceTransportPolicy: 'relay',
+              iceServers: iceServers
             }
+          }
         })
       )
 
       const yMessages = markRaw(doc.getArray<RoomMessage>('messages'))
       const store = this
-
-      debugLog('会话初始化完成，绑定 Yjs 资源', {
-        roomId,
-        currentMessageCount: yMessages.length,
-      })
 
       const session: RoomSession = {
         roomId,
@@ -499,77 +463,6 @@ export const useRoomStore = defineStore('room', {
         },
       }
 
-      // 详细诊断函数
-  const diagnoseConnection = () => {
-    const room = provider.room
-    if (!room) {
-      console.log('[Yjs] 诊断: room 尚未初始化')
-      return
-    }
-
-    const webrtcConns = room.webrtcConns
-    console.log('[Yjs] 完整连接诊断:', {
-      roomId,
-      roomSynced: room.synced,
-      connected: provider.connected,
-      webrtcConnsCount: webrtcConns.size,
-      bcConnsCount: room.bcConns.size,
-      connections: Array.from(webrtcConns.entries()).map(([peerId, conn]) => {
-        const peer = conn.peer as RTCPeerConnection
-        const dataChannels: string[] = []
-        
-        // 检查所有数据通道
-        if (peer && 'getReceivers' in peer) {
-          // 尝试获取数据通道状态
-          try {
-            // @ts-ignore - 访问内部属性
-            const channels = peer._dataChannels || []
-            channels.forEach((channel: RTCDataChannel) => {
-              dataChannels.push({
-                label: channel.label,
-                readyState: channel.readyState, // 'connecting' | 'open' | 'closing' | 'closed'
-                id: channel.id
-              } as any)
-            })
-          } catch (e) {
-            // 忽略访问错误
-          }
-        }
-
-        return {
-          peerId: peerId.substring(0, 12) + '...',
-          connected: conn.connected,
-          synced: conn.synced,
-          closed: conn.closed,
-          peerConnectionState: peer?.connectionState,
-          peerIceConnectionState: peer?.iceConnectionState,
-          peerSignalingState: peer?.signalingState,
-          dataChannels: dataChannels.length > 0 ? dataChannels : '无法访问',
-          // 检查是否有打开的数据通道
-          hasOpenDataChannel: dataChannels.some((ch: any) => ch.readyState === 'open')
-        }
-      })
-    })
-  }
-
-  // 定期诊断
-  const diagnosisInterval = setInterval(() => {
-    diagnoseConnection()
-  }, 2000)
-
-  // 监听对等节点变化时也诊断
-  provider.on('peers', () => {
-    setTimeout(diagnoseConnection, 500) // 延迟一点，等待连接建立
-  })
-
-  // 监听同步状态
-  provider.on('synced', (event: { synced: boolean }) => {
-    console.log('[Yjs] 同步状态变化:', event.synced)
-    if (event.synced) {
-      diagnoseConnection()
-      clearInterval(diagnosisInterval)
-    }
-  })
 
       const updateMessages = () => {
         const incoming = yMessages
@@ -579,11 +472,6 @@ export const useRoomStore = defineStore('room', {
           .sort((a, b) => a.timestamp - b.timestamp)
 
         const currentSession = store.sessions[roomId]
-        debugLog('Yjs 消息列表变更', {
-          roomId,
-          incomingCount: incoming.length,
-          hasCurrentSession: Boolean(currentSession),
-        })
         if (currentSession) {
           currentSession.messages = incoming
         } else {
@@ -599,7 +487,6 @@ export const useRoomStore = defineStore('room', {
       const updateParticipants = () => {
         const aggregated: RoomParticipant[] = []
         awareness.getStates().forEach((state) => {
-          debugLog('接收到 awareness 状态', { roomId, state })
           const participant = buildParticipant(state)
           if (participant) {
             aggregated.push(participant)
@@ -608,11 +495,6 @@ export const useRoomStore = defineStore('room', {
 
         aggregated.sort((a, b) => a.joinedAt - b.joinedAt)
         const currentSession = store.sessions[roomId]
-        debugLog('Awareness 参与者更新', {
-          roomId,
-          participantCount: aggregated.length,
-          participantIds: aggregated.map((item) => item.userId),
-        })
         if (currentSession) {
           currentSession.participants = aggregated
         } else {
@@ -624,10 +506,7 @@ export const useRoomStore = defineStore('room', {
       setLocalAwareness(provider, user, session.localJoinedAt)
       updateParticipants()
 
-      debugLog('完成会话初始化流程，已订阅 Yjs 变更', { roomId })
-
       session.cleanup = () => {
-        debugLog('清理会话并销毁资源', { roomId })
         yMessages.unobserve(updateMessages)
         awareness.off('change', updateParticipants)
         provider.destroy()
