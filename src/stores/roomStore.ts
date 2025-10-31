@@ -6,9 +6,44 @@ import { WebrtcProvider } from 'y-webrtc'
 const KNOWN_ROOMS_KEY = 'play-chat-room-ids'
 const DEFAULT_USERNAME = '匿名旅人'
 
-const SIGNALING_ENDPOINTS = [
-  'ws://8.152.98.245:23333/signal?room=<id>',
-]
+const FALLBACK_SIGNALING_ENDPOINT = 'ws://8.152.98.245:23333/signal?room=<id>'
+
+const resolveEnvSignalingEndpoints = (): string[] => {
+  const raw =
+    import.meta.env.VITE_SIGNALING_ENDPOINTS ?? import.meta.env.VITE_SIGNALING_ENDPOINT ?? ''
+  return raw
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+}
+
+const resolveBrowserSignalingEndpoint = (): string | null => {
+  if (typeof window === 'undefined' || !window.location) {
+    return null
+  }
+
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  if (window.location.host.includes(':')) {
+    return `${protocol}://${window.location.host}/signal?room=<id>`
+  }
+
+  const fallbackPort = (import.meta.env.VITE_SIGNALING_PORT ?? '').trim()
+  if (fallbackPort.length > 0) {
+    return `${protocol}://${window.location.hostname}:${fallbackPort}/signal?room=<id>`
+  }
+
+  return `${protocol}://${window.location.host}/signal?room=<id>`
+}
+
+const SIGNALING_ENDPOINTS = Array.from(
+  new Set(
+    [
+      ...resolveEnvSignalingEndpoints(),
+      resolveBrowserSignalingEndpoint(),
+      FALLBACK_SIGNALING_ENDPOINT,
+    ].filter((item): item is string => typeof item === 'string' && item.length > 0)
+  )
+)
 
 const SECRET_SEED = 'play-chat-secret-seed'
 const ENCRYPTION_PREFIX = 'enc::v1::'
