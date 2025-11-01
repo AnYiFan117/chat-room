@@ -24,14 +24,16 @@ import { RouterLink, RouterView } from 'vue-router'
   display: flex;
   flex-direction: column;
   overflow: auto;
+  min-width: 355px
 }
 
 .app-header {
   height: 80px;
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  padding: 1.5rem;
+  padding: 1rem;
   background: #ffffff;
   color: #0f172a;
   border-bottom: 1px solid rgba(16, 185, 129, 0.25);
@@ -46,7 +48,7 @@ import { RouterLink, RouterView } from 'vue-router'
 
 .nav-links {
   display: flex;
-  gap: 1rem;
+  gap: 0.5rem;
   font-weight: 500;
 }
 
@@ -54,7 +56,7 @@ import { RouterLink, RouterView } from 'vue-router'
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.6rem 1.3rem;
+  padding: 0.5rem 1rem;
   border-radius: 999px;
   color: #047857;
   background: rgba(236, 253, 245, 0.95);
@@ -85,11 +87,4 @@ import { RouterLink, RouterView } from 'vue-router'
   overflow: auto;
 }
 
-@media (max-width: 640px) {
-  .app-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-  }
-}
 </style>
