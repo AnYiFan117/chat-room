@@ -620,35 +620,14 @@ h1 {
   box-shadow: 0 14px 32px rgba(16, 185, 129, 0.4);
 }
 
-
-
-@media (max-width: 768px) {
+@media (max-width: 1090px) {
   .room-shell {
-    padding: 1.5rem;
-  }
-}
-
-@media (max-width: 520px) {
-  .room-header {
-    text-align: left;
-    align-items: center;
-    gap: 1rem;
-    padding: 1.25rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
   }
 
-  .room-user {
-    align-items: flex-start;
-  }
-
-  .ghost {
-    width: auto;
-    align-self: center;
-    flex-shrink: 0;
-  }
-
-  .composer-actions {
-    flex-direction: column;
-    align-items: flex-start;
+  .room-left {
+    display: none;
   }
 }
 </style>

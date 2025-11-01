@@ -1,73 +1,48 @@
-# play
+# 超级大爆聊天室
 
-This template should help get you started developing with Vue 3 in Vite.
+## 简介
+本网站使用P2P架构，通过房间号建立用户之间的连接。
+消息传递使用了Ydoc，通过信令建立p2p,通过turn来传递聊天记录。
+如果想要使用本仓库，需要自行配制信令地址和 turn 服务器，并通过环境变量注入。
 
-## Recommended IDE Setup
+## 环境变量
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+1. 复制 `.env.example` 为 `.env`。
+2. `VITE_SIGNALING_ENDPOINTS` 用于声明信令服务器基础地址（代码会自动追加 `room` 查询参数），支持逗号分隔或 JSON 数组格式，示例：  
+   `VITE_SIGNALING_ENDPOINTS=["wss://signal-1.example/ws","wss://signal-2.example/ws"]`
+3. `VITE_ICE_SERVERS` 以 JSON 数组形式配置 STUN/TURN 服务器及凭据，例如：  
+   `VITE_ICE_SERVERS=[{"urls":"stun:your-stun.example:3478"},{"urls":"turn:your-turn.example:3478?transport=tcp","username":"turn-user","credential":"turn-password"}]`
+4. `.env` 文件已加入 `.gitignore`，请勿提交真实凭据到仓库。
+5. 如果未设置环境变量，会自动回退到默认配置：`wss://8.152.98.245/signal` 及 `stun/turn:8.152.98.245:3478`。
 
-## Recommended Browser Setup
+## 配置步骤
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd) 
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+### 1. 安装前端依赖
 
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
+进入到项目主目录
+```
 npm install
 ```
 
-### Compile and Hot-Reload for Development
-
-```sh
-npm run dev
+部署
 ```
-
-### Type-Check, Compile and Minify for Production
-
-```sh
 npm run build
 ```
 
-### Run Unit Tests with [Vitest](https://vitest.dev/)
+### 2. 在服务器上
 
-```sh
-npm run test:unit
-```
+部署nginx
 
-### Run End-to-End Tests with [Playwright](https://playwright.dev)
+...
 
-```sh
-# Install browsers for the first run
-npx playwright install
+部署信令服务器
 
-# When testing on CI, must build the project first
-npm run build
+...
 
-# Runs the end-to-end tests
-npm run test:e2e
-# Runs the tests only on Chromium
-npm run test:e2e -- --project=chromium
-# Runs the tests of a specific file
-npm run test:e2e -- tests/example.spec.ts
-# Runs the tests in debug mode
-npm run test:e2e -- --debug
-```
+部署coturn
 
-### Lint with [ESLint](https://eslint.org/)
+...
 
-```sh
-npm run lint
-```
+设置网站证书
+
+...

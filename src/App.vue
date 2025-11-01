@@ -20,10 +20,9 @@ import { RouterLink, RouterView } from 'vue-router'
 
 <style scoped>
 .app-shell {
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: auto;
 }
 
 .app-header {
@@ -76,10 +75,9 @@ import { RouterLink, RouterView } from 'vue-router'
 }
 
 .app-main {
-  flex: 1;
+  flex: 1 0 auto;
   background: #ecfdf5;
   min-height: 0;
-  overflow: auto;
 }
 
 @media (max-width: 640px) {
