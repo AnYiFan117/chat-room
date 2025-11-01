@@ -18,7 +18,7 @@ const selfId = ref('')
 const activeRoomId = ref('')
 const roomMissing = ref(false)
 const messageInput = ref('')
-const messageEndRef = ref<HTMLElement | null>(null)
+const chatWindowRef = ref<HTMLElement | null>(null)
 
 const normalizedRoomId = computed(() => props.roomId.toUpperCase())
 
@@ -90,6 +90,7 @@ const joinRoomFlow = (roomId: string) => {
 
   roomMissing.value = false
   activeRoomId.value = session.roomId
+  nextTick(() => scrollChatToBottom('auto'))
 }
 
 const handleSendMessage = () => {
@@ -103,6 +104,7 @@ const handleSendMessage = () => {
   })
 
   messageInput.value = ''
+  nextTick(() => scrollChatToBottom('smooth'))
 }
 
 const handleComposerKeydown = (event: KeyboardEvent) => {
@@ -115,6 +117,16 @@ const handleComposerKeydown = (event: KeyboardEvent) => {
 const handleBackToLobby = () => {
   leaveActiveRoom()
   router.push('/')
+}
+
+const scrollChatToBottom = (behavior: ScrollBehavior = 'auto') => {
+  const container = chatWindowRef.value
+  if (!container) return
+  if (typeof container.scrollTo === 'function') {
+    container.scrollTo({ top: container.scrollHeight, behavior })
+    return
+  }
+  container.scrollTop = container.scrollHeight
 }
 
 onMounted(() => {
@@ -150,8 +162,16 @@ watch(
   () => {
     if (roomMissing.value) return
     nextTick(() => {
-      messageEndRef.value?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+      scrollChatToBottom('smooth')
     })
+  }
+)
+
+watch(
+  () => roomMissing.value,
+  (missing) => {
+    if (missing) return
+    nextTick(() => scrollChatToBottom('auto'))
   }
 )
 </script>
@@ -162,7 +182,7 @@ watch(
       <header class="room-header">
         <div class="room-meta">
           <p class="room-tag">房间号</p>
-          <h1>#{{ normalizedRoomId }}</h1>
+          <h2>{{ normalizedRoomId }}</h2>
         </div>
 
         <div class="room-user">
@@ -192,7 +212,7 @@ watch(
     </div>
 
     <div class="chat-panel">
-      <div class="chat-window">
+      <div ref="chatWindowRef" class="chat-window">
         <template v-if="roomMissing">
           <div class="chat-missing">
             <h2>房间不存在</h2>
@@ -229,7 +249,6 @@ watch(
             <h3>开始第一条对话</h3>
             <p>欢迎来到聊天室，发送一条消息或等待好友加入，随时开始互动。</p>
           </div>
-          <div ref="messageEndRef" class="scroll-anchor" aria-hidden="true"></div>
         </template>
       </div>
 
@@ -252,13 +271,17 @@ watch(
 <style scoped>
 .room-shell {
   flex: 1;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  grid-template-columns: 180px minmax(800px, 1fr);
+  grid-template-rows: 1fr;
   gap: 2rem;
   padding: clamp(1.5rem, 4vw, 3rem);
+  box-sizing: border-box;
   align-items: stretch;
   min-width: 0;
+  overflow: auto;
 }
 
 .room-left {
@@ -339,7 +362,7 @@ h1 {
 
 .sidebar {
   flex: 1;
-  min-height: 0;
+  min-height: auto;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -395,8 +418,8 @@ h1 {
 }
 
 .chat-panel {
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 0%;
+  min-height: 497px;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -405,17 +428,20 @@ h1 {
   border-radius: 24px;
   border: 1px solid rgba(226, 232, 240, 0.86);
   box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
-  min-height: 520px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .chat-window {
-  flex: 1;
+  flex: 1 1 0%;
+  height: 100%;
   min-height: 0;
   overflow-y: auto;
   padding-right: 0.5rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  scroll-behavior: smooth;
 }
 
 .message-list {
@@ -536,10 +562,6 @@ h1 {
   color: #475569;
 }
 
-.scroll-anchor {
-  height: 1px;
-}
-
 .composer {
   display: flex;
   flex-direction: column;
@@ -598,21 +620,7 @@ h1 {
   box-shadow: 0 14px 32px rgba(16, 185, 129, 0.4);
 }
 
-@media (max-width: 1024px) {
-  .room-shell {
-    grid-template-columns: minmax(0, 320px) 1fr;
-  }
-}
 
-@media (max-width: 880px) {
-  .room-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .chat-panel {
-    min-height: 480px;
-  }
-}
 
 @media (max-width: 768px) {
   .room-shell {
@@ -622,18 +630,20 @@ h1 {
 
 @media (max-width: 520px) {
   .room-header {
-    text-align: center;
+    text-align: left;
     align-items: center;
+    gap: 1rem;
     padding: 1.25rem;
   }
 
   .room-user {
-    align-items: center;
+    align-items: flex-start;
   }
 
   .ghost {
-    width: 100%;
-    align-self: stretch;
+    width: auto;
+    align-self: center;
+    flex-shrink: 0;
   }
 
   .composer-actions {
