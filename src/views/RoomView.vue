@@ -270,18 +270,15 @@ watch(
 
 <style scoped>
 .room-shell {
-  flex: 1;
-  height: 100%;
-  min-height: 0;
+  min-height: 600px;
   display: grid;
   grid-template-columns: 180px minmax(800px, 1fr);
-  grid-template-rows: 1fr;
+  grid-template-rows: auto;
   gap: 2rem;
   padding: clamp(1.5rem, 4vw, 3rem);
   box-sizing: border-box;
   align-items: stretch;
   min-width: 0;
-  overflow: auto;
 }
 
 .room-left {
@@ -418,8 +415,8 @@ h1 {
 }
 
 .chat-panel {
-  flex: 1 1 0%;
-  min-height: 497px;
+  /* flex: 1 1 0%;*/
+  /* min-height: 497px; */
   display: flex;
   flex-direction: column;
   gap: 1.25rem;

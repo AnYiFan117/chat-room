@@ -23,9 +23,11 @@ import { RouterLink, RouterView } from 'vue-router'
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: auto;
 }
 
 .app-header {
+  height: 80px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -75,9 +77,12 @@ import { RouterLink, RouterView } from 'vue-router'
 }
 
 .app-main {
-  flex: 1 0 auto;
+  max-height: calc(100vh - 80px);
+  min-height: 1200px;
+  flex: 1;
   background: #ecfdf5;
   min-height: 0;
+  overflow: auto;
 }
 
 @media (max-width: 640px) {
