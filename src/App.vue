@@ -80,10 +80,9 @@ import { RouterLink, RouterView } from 'vue-router'
 
 .app-main {
   max-height: calc(100vh - 80px);
-  min-height: 1200px;
+  min-height: 600px;
   flex: 1;
   background: #ecfdf5;
-  min-height: 0;
   overflow: auto;
 }
 

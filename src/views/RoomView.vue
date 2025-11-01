@@ -270,7 +270,6 @@ watch(
 
 <style scoped>
 .room-shell {
-  min-height: 600px;
   display: grid;
   grid-template-columns: 180px minmax(800px, 1fr);
   grid-template-rows: auto;
@@ -360,6 +359,7 @@ h1 {
 .sidebar {
   flex: 1;
   min-height: auto;
+  max-height: 50vh;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -380,6 +380,7 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  overflow: auto;
 }
 
 .member-card {
