@@ -158,22 +158,22 @@ watch(
 
 <template>
   <div class="room-shell">
-    <header class="room-header">
-      <div class="room-meta">
-        <p class="room-tag">房间号</p>
-        <h1>#{{ normalizedRoomId }}</h1>
-      </div>
+    <div class="room-left">
+      <header class="room-header">
+        <div class="room-meta">
+          <p class="room-tag">房间号</p>
+          <h1>#{{ normalizedRoomId }}</h1>
+        </div>
 
-      <div class="room-user">
-        <span class="user-label">当前用户</span>
-        <span class="user-name">{{ username }}</span>
-      </div>
+        <div class="room-user">
+          <span class="user-label">当前用户</span>
+          <span class="user-name">{{ username }}</span>
+        </div>
 
-      <button type="button" class="ghost" @click="handleBackToLobby">离开房间</button>
-    </header>
+        <button type="button" class="ghost" @click="handleBackToLobby">离开房间</button>
+      </header>
 
-    <section class="room-body">
-      <div class="sidebar">
+      <section class="sidebar">
         <h2>在线成员</h2>
         <div v-if="!roomMissing && participants.length" class="member-list">
           <div
@@ -188,85 +188,96 @@ watch(
         </div>
         <p v-else-if="roomMissing" class="sidebar-hint">未找到该房间，返回大厅重新加入。</p>
         <p v-else class="sidebar-hint">暂无其他成员加入，邀请好友一起畅聊。</p>
-      </div>
+      </section>
+    </div>
 
-      <div class="chat-panel">
-        <div class="chat-window">
-          <template v-if="roomMissing">
-            <div class="chat-missing">
-              <h2>房间不存在</h2>
-              <p>请返回大厅重新确认房间号，或创建一个新的房间。</p>
-              <button type="button" class="ghost" @click="handleBackToLobby">返回大厅</button>
-            </div>
-          </template>
-          <template v-else>
-            <ul v-if="hasMessages" class="message-list">
-              <li
-                v-for="message in messages"
-                :key="message.id"
-                class="message"
-                :class="{
-                  self: message.type === 'chat' && message.userId === selfId,
-                  other: message.type === 'chat' && message.userId !== selfId,
-                  system: message.type === 'system',
-                }"
-              >
-                <div v-if="message.type === 'system'" class="message-system">
-                  <span>{{ message.content }}</span>
-                  <time>{{ formatTimestamp(message.timestamp) }}</time>
-                </div>
-                <div v-else class="message-bubble">
-                  <header>
-                    <span class="author">{{ message.username }}</span>
-                    <time>{{ formatTimestamp(message.timestamp) }}</time>
-                  </header>
-                  <p class="body">{{ message.content }}</p>
-                </div>
-              </li>
-            </ul>
-            <div v-else class="chat-empty">
-              <h3>开始第一条对话</h3>
-              <p>欢迎来到聊天室，发送一条消息或等待好友加入，随时开始互动。</p>
-            </div>
-            <div ref="messageEndRef" class="scroll-anchor" aria-hidden="true"></div>
-          </template>
-        </div>
-
-        <form v-if="!roomMissing" class="composer" @submit.prevent="handleSendMessage">
-          <textarea
-            v-model="messageInput"
-            rows="3"
-            placeholder="输入消息，按 Enter 发送，Shift + Enter 换行"
-            @keydown="handleComposerKeydown"
-          ></textarea>
-          <div class="composer-actions">
-            <span class="composer-hint">Enter 发送 · Shift + Enter 换行</span>
-            <button type="submit" class="cta primary">发送消息</button>
+    <div class="chat-panel">
+      <div class="chat-window">
+        <template v-if="roomMissing">
+          <div class="chat-missing">
+            <h2>房间不存在</h2>
+            <p>请返回大厅重新确认房间号，或创建一个新的房间。</p>
+            <button type="button" class="ghost" @click="handleBackToLobby">返回大厅</button>
           </div>
-        </form>
+        </template>
+        <template v-else>
+          <ul v-if="hasMessages" class="message-list">
+            <li
+              v-for="message in messages"
+              :key="message.id"
+              class="message"
+              :class="{
+                self: message.type === 'chat' && message.userId === selfId,
+                other: message.type === 'chat' && message.userId !== selfId,
+                system: message.type === 'system',
+              }"
+            >
+              <div v-if="message.type === 'system'" class="message-system">
+                <span>{{ message.content }}</span>
+                <time>{{ formatTimestamp(message.timestamp) }}</time>
+              </div>
+              <div v-else class="message-bubble">
+                <header>
+                  <span class="author">{{ message.username }}</span>
+                  <time>{{ formatTimestamp(message.timestamp) }}</time>
+                </header>
+                <p class="body">{{ message.content }}</p>
+              </div>
+            </li>
+          </ul>
+          <div v-else class="chat-empty">
+            <h3>开始第一条对话</h3>
+            <p>欢迎来到聊天室，发送一条消息或等待好友加入，随时开始互动。</p>
+          </div>
+          <div ref="messageEndRef" class="scroll-anchor" aria-hidden="true"></div>
+        </template>
       </div>
-    </section>
+
+      <form v-if="!roomMissing" class="composer" @submit.prevent="handleSendMessage">
+        <textarea
+          v-model="messageInput"
+          rows="3"
+          placeholder="输入消息，按 Enter 发送，Shift + Enter 换行"
+          @keydown="handleComposerKeydown"
+        ></textarea>
+        <div class="composer-actions">
+          <span class="composer-hint">Enter 发送 · Shift + Enter 换行</span>
+          <button type="submit" class="cta primary">发送消息</button>
+        </div>
+      </form>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .room-shell {
+  flex: 1;
   min-height: 100%;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
   gap: 2rem;
   padding: clamp(1.5rem, 4vw, 3rem);
+  align-items: stretch;
+  min-width: 0;
+}
+
+.room-left {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-height: 0;
+  height: 100%;
 }
 
 .room-header {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: center;
-  gap: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
   padding: 1.5rem 2rem;
   background: rgba(236, 253, 245, 0.92);
   border-radius: 18px;
   border: 1px solid rgba(16, 185, 129, 0.18);
+  flex-shrink: 0;
 }
 
 .room-meta {
@@ -310,7 +321,7 @@ h1 {
 }
 
 .ghost {
-  justify-self: end;
+  align-self: flex-start;
   padding: 0.7rem 1.5rem;
   border-radius: 999px;
   font-weight: 600;
@@ -326,13 +337,9 @@ h1 {
   background: rgba(190, 242, 100, 0.2);
 }
 
-.room-body {
-  display: grid;
-  grid-template-columns: minmax(220px, 280px) 1fr;
-  gap: 1.5rem;
-}
-
 .sidebar {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -388,6 +395,8 @@ h1 {
 }
 
 .chat-panel {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -589,22 +598,14 @@ h1 {
   box-shadow: 0 14px 32px rgba(16, 185, 129, 0.4);
 }
 
-@media (max-width: 960px) {
-  .room-header {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .ghost {
-    justify-self: start;
+@media (max-width: 1024px) {
+  .room-shell {
+    grid-template-columns: minmax(0, 320px) 1fr;
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 880px) {
   .room-shell {
-    padding: 1.5rem;
-  }
-
-  .room-body {
     grid-template-columns: 1fr;
   }
 
@@ -613,10 +614,17 @@ h1 {
   }
 }
 
+@media (max-width: 768px) {
+  .room-shell {
+    padding: 1.5rem;
+  }
+}
+
 @media (max-width: 520px) {
   .room-header {
-    grid-template-columns: 1fr;
     text-align: center;
+    align-items: center;
+    padding: 1.25rem;
   }
 
   .room-user {
@@ -625,6 +633,7 @@ h1 {
 
   .ghost {
     width: 100%;
+    align-self: stretch;
   }
 
   .composer-actions {

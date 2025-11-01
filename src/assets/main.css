@@ -4,3 +4,13 @@
   min-height: 100vh;
   font-weight: normal;
 }
+
+main.app-main {
+  display: flex;
+  flex-direction: column;
+}
+
+main.app-main > * {
+  flex: 1;
+  min-height: 100%;
+}
