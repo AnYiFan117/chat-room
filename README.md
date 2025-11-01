@@ -7,13 +7,14 @@
 
 ## 环境变量
 
-1. 复制 `.env.example` 为 `.env`。
-2. `VITE_SIGNALING_ENDPOINTS` 用于声明信令服务器基础地址（代码会自动追加 `room` 查询参数），支持逗号分隔或 JSON 数组格式，示例：  
-   `VITE_SIGNALING_ENDPOINTS=["wss://signal-1.example/ws","wss://signal-2.example/ws"]`
-3. `VITE_ICE_SERVERS` 以 JSON 数组形式配置 STUN/TURN 服务器及凭据，例如：  
+1. 在项目根目录创建 `.env` 文件
+2. **信令服务器配置**（二选一）：
+   - `VITE_SIGNALING_ENDPOINT` - 单个端点（代码会自动添加 `room` 参数），示例：`VITE_SIGNALING_ENDPOINT=wss://signal.example.com/signal`
+   - `VITE_SIGNALING_ENDPOINTS` - 多个端点（JSON 数组格式），示例：`VITE_SIGNALING_ENDPOINTS=["wss://signal-1.example/ws","wss://signal-2.example/ws"]`
+3. `VITE_ICE_SERVERS` - 以 JSON 数组形式配置 STUN/TURN 服务器及凭据，示例：  
    `VITE_ICE_SERVERS=[{"urls":"stun:your-stun.example:3478"},{"urls":"turn:your-turn.example:3478?transport=tcp","username":"turn-user","credential":"turn-password"}]`
-4. `.env` 文件已加入 `.gitignore`，请勿提交真实凭据到仓库。
-5. 如果未设置环境变量，会自动回退到默认配置：`wss://8.152.98.245/signal` 及 `stun/turn:8.152.98.245:3478`。
+4. `.env` 文件已加入 `.gitignore`，请勿提交真实凭据到仓库
+5. 如果未设置环境变量，会自动回退到默认配置：`wss://8.152.98.245/signal` 及 `stun/turn:8.152.98.245:3478`
 
 ## 配置步骤
 

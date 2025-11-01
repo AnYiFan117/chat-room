@@ -417,27 +417,54 @@ export const useRoomStore = defineStore('room', {
         },
       ])
     },
+    // 从环境变量解析 ICE 服务器配置
+    getIceServers(): RTCIceServer[] {
+      const envValue = import.meta.env.VITE_ICE_SERVERS
+      if (envValue) {
+        try {
+          // 预期格式：JSON 数组字符串
+          const parsed = JSON.parse(envValue)
+          if (Array.isArray(parsed)) {
+            return parsed.filter((item): item is RTCIceServer => 
+              item && typeof item === 'object' && 'urls' in item
+            )
+          }
+        } catch (error) {
+          console.warn('解析 VITE_ICE_SERVERS 失败', error)
+        }
+      }
+      return []
+    },
+    // 从环境变量构建 signaling 端点
+    getSignalingEndpoints(roomId: string): string[] {
+      const endpoint = import.meta.env.VITE_SIGNALING_ENDPOINT
+
+      if (endpoint) {
+        // 单个端点，自动添加房间参数
+        return [`${endpoint}?room=${roomId}`]
+      }
+      return []
+    },
     // 初始化房间会话：构造 Yjs 文档与 WebRTC 连接
     initializeSession(roomId: string, user: { id: string; username: string }) {
       // 每个房间维护独立的 Yjs 文档
       const doc = markRaw(new Y.Doc())
       
-      // 定义 ICE 服务器配置
-      const iceServers: RTCIceServer[] = [
-        {urls: 'stun:8.152.98.245:3478', username: 'anyifan', credential: 'askayf010922'},
-        {urls: 'turn:8.152.98.245:3478?transport=tcp', username: 'anyifan', credential: 'askayf010922'},
-        {urls: 'turn:8.152.98.245:3478?transport=udp', username: 'anyifan', credential: 'askayf010922'}
-      ]
+      // 从环境变量读取 ICE 服务器配置
+      const iceServers = this.getIceServers()
+      
+      // 从环境变量读取 signaling 端点
+      const signaling = this.getSignalingEndpoints(roomId)
 
       // 创建 WebRTC 提供者，用于同步 Yjs 文档
       const provider = markRaw(
         new WebrtcProvider(roomId, doc, {
-          signaling: ['wss://8.152.98.245/signal?room='+roomId],
+          signaling,
           peerOpts: {
             trickle: true,
             config: {
               iceTransportPolicy: 'relay',
-              iceServers: iceServers
+              iceServers
             }
           }
         })
