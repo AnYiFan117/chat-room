@@ -444,7 +444,7 @@ h1 {
 .message-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 50px;
   display: flex;
   flex-direction: column;
   gap: 1rem;
