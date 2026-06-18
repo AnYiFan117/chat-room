@@ -175,6 +175,12 @@ const clearPendingImage = () => {
   imageError.value = null
 }
 
+const openImage = (src: string) => {
+  if (typeof window !== 'undefined') {
+    window.open(src, '_blank')
+  }
+}
+
 const handleBackToLobby = () => {
   leaveActiveRoom()
   router.push('/')
@@ -288,8 +294,8 @@ watch(
               :key="message.id"
               class="message"
               :class="{
-                self: message.type === 'chat' && message.userId === selfId,
-                other: message.type === 'chat' && message.userId !== selfId,
+                self: message.type !== 'system' && message.userId === selfId,
+                other: message.type !== 'system' && message.userId !== selfId,
                 system: message.type === 'system',
               }"
             >
@@ -302,7 +308,15 @@ watch(
                   <span class="author">{{ message.username }}</span>
                   <time>{{ formatTimestamp(message.timestamp) }}</time>
                 </header>
-                <p class="body">{{ message.content }}</p>
+                <img
+                  v-if="message.type === 'image'"
+                  :src="message.content"
+                  class="message-image"
+                  alt="聊天图片"
+                  loading="lazy"
+                  @click="openImage(message.content)"
+                />
+                <p v-else class="body">{{ message.content }}</p>
               </div>
             </li>
           </ul>
