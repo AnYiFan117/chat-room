@@ -48,7 +48,9 @@ describe('useImageCompressor', () => {
       drawImage: vi.fn(),
     }
 
-    global.HTMLCanvasElement.prototype.getContext = vi.fn(() => mockContext) as unknown as typeof HTMLCanvasElement.prototype.getContext
+    global.HTMLCanvasElement.prototype.getContext = vi.fn(
+      () => mockContext,
+    ) as unknown as typeof HTMLCanvasElement.prototype.getContext
 
     global.HTMLCanvasElement.prototype.toBlob = vi.fn((callback) => {
       const blob = new Blob(['x'.repeat(mockBlobSize)], { type: 'image/jpeg' })
@@ -60,7 +62,8 @@ describe('useImageCompressor', () => {
       onerror: (() => void) | null = null
       onabort: (() => void) | null = null
       result = ''
-      readAsDataURL(blob: Blob) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      readAsDataURL(_: Blob) {
         if (mockFileReaderError) {
           setTimeout(() => this.onerror?.(), 0)
         } else {
@@ -113,13 +116,7 @@ describe('useImageCompressor', () => {
     await compressImage(file, { maxWidth: 1200, maxHeight: 1200 })
 
     const context = mockContext
-    expect(context!.drawImage).toHaveBeenCalledWith(
-      expect.anything(),
-      0,
-      0,
-      1200,
-      600
-    )
+    expect(context!.drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 1200, 600)
   })
 
   it('rejects when image loading fails', async () => {

@@ -19,14 +19,9 @@ export interface CompressImageOptions {
  */
 export async function compressImage(
   file: File,
-  options: CompressImageOptions = {}
+  options: CompressImageOptions = {},
 ): Promise<string> {
-  const {
-    maxWidth = 1200,
-    maxHeight = 1200,
-    quality = 0.8,
-    maxSize = 2 * 1024 * 1024,
-  } = options
+  const { maxWidth = 1200, maxHeight = 1200, quality = 0.8, maxSize = 2 * 1024 * 1024 } = options
 
   if (!file.type.startsWith('image/')) {
     throw new TypeError('请选择图片文件')
@@ -72,7 +67,7 @@ export async function compressImage(
             reader.readAsDataURL(blob)
           },
           'image/jpeg',
-          quality
+          quality,
         )
       }
       image.onerror = () => reject(new Error('加载图片失败'))

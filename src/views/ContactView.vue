@@ -19,9 +19,7 @@ const handleSubmit = () => {
     <header>
       <p class="eyebrow">Let's build something great</p>
       <h1>联系我</h1>
-      <p class="lead">
-        如果你对项目有建议、想要合作，或只是想打个招呼，填写下面的表格即可。
-      </p>
+      <p class="lead">如果你对项目有建议、想要合作，或只是想打个招呼，填写下面的表格即可。</p>
     </header>
 
     <form class="contact-form" @submit.prevent="handleSubmit">
@@ -122,7 +120,10 @@ textarea {
   background: #ffffff;
   font-size: 1rem;
   color: #0f172a;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
 input:focus,
@@ -148,7 +149,9 @@ button {
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 12px 24px rgba(16, 185, 129, 0.3);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 button:hover {

@@ -51,7 +51,11 @@ const ensureSelfIdentity = () => {
   if (typeof window === 'undefined') return
   let stored = window.localStorage.getItem(USER_ID_KEY)
   if (!stored || stored.trim().length === 0) {
-    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto && typeof crypto.randomUUID === 'function') {
+    if (
+      typeof crypto !== 'undefined' &&
+      'randomUUID' in crypto &&
+      typeof crypto.randomUUID === 'function'
+    ) {
       stored = crypto.randomUUID()
     } else {
       stored = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
@@ -213,7 +217,7 @@ watch(
       leaveActiveRoom()
     }
     joinRoomFlow(nextId)
-  }
+  },
 )
 
 watch(username, (nextName) => {
@@ -231,7 +235,7 @@ watch(
     nextTick(() => {
       scrollChatToBottom('smooth')
     })
-  }
+  },
 )
 
 watch(
@@ -239,7 +243,7 @@ watch(
   (missing) => {
     if (missing) return
     nextTick(() => scrollChatToBottom('auto'))
-  }
+  },
 )
 </script>
 
@@ -270,7 +274,9 @@ watch(
             :class="{ self: participant.userId === selfId }"
           >
             <span class="member-name">{{ participant.username }}</span>
-            <span class="member-status">{{ participant.userId === selfId ? '你自己' : '在线' }}</span>
+            <span class="member-status">{{
+              participant.userId === selfId ? '你自己' : '在线'
+            }}</span>
           </div>
         </div>
         <p v-else-if="roomMissing" class="sidebar-hint">未找到该房间，返回大厅重新加入。</p>
@@ -455,7 +461,9 @@ h1 {
   background: rgba(236, 253, 245, 0.9);
   border: 1px solid rgba(148, 163, 184, 0.35);
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
 }
 
 .ghost:hover {
@@ -679,7 +687,9 @@ h1 {
   resize: none;
   font-size: 1rem;
   line-height: 1.6;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .composer textarea:focus {
@@ -709,7 +719,9 @@ h1 {
   font-weight: 600;
   border: none;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .cta.primary {
@@ -813,7 +825,9 @@ h1 {
   background: rgba(236, 253, 245, 0.9);
   border: 1px solid rgba(16, 185, 129, 0.3);
   cursor: pointer;
-  transition: transform 0.2s ease, background 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
 }
 
 .image-button:hover:not(:disabled) {

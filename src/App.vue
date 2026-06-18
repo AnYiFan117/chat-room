@@ -24,7 +24,7 @@ import { RouterLink, RouterView } from 'vue-router'
   display: flex;
   flex-direction: column;
   overflow: auto;
-  min-width: 355px
+  min-width: 355px;
 }
 
 .app-header {
@@ -62,7 +62,11 @@ import { RouterLink, RouterView } from 'vue-router'
   background: rgba(236, 253, 245, 0.95);
   border: 1px solid rgba(16, 185, 129, 0.2);
   text-decoration: none;
-  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .nav-link:hover {
@@ -85,5 +89,4 @@ import { RouterLink, RouterView } from 'vue-router'
   background: #ecfdf5;
   overflow: auto;
 }
-
 </style>
