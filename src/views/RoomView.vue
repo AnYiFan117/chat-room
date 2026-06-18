@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { useRoomStore } from '@/stores/roomStore'
+import { compressImage, ImageTooLargeError } from '@/composables/useImageCompressor'
 
 const props = defineProps<{ roomId: string }>()
 
@@ -19,6 +20,11 @@ const activeRoomId = ref('')
 const roomMissing = ref(false)
 const messageInput = ref('')
 const chatWindowRef = ref<HTMLElement | null>(null)
+
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const pendingImage = ref<{ dataUrl: string; fileName: string; size: number } | null>(null)
+const imageError = ref<string | null>(null)
+const isCompressing = ref(false)
 
 const normalizedRoomId = computed(() => props.roomId.toUpperCase())
 
@@ -96,6 +102,20 @@ const joinRoomFlow = (roomId: string) => {
 const handleSendMessage = () => {
   if (roomMissing.value || !activeRoomId.value) return
 
+  if (pendingImage.value) {
+    roomStore.sendImage(activeRoomId.value, {
+      userId: selfId.value,
+      username: username.value,
+      dataUrl: pendingImage.value.dataUrl,
+      fileName: pendingImage.value.fileName,
+      size: pendingImage.value.size,
+    })
+    pendingImage.value = null
+    imageError.value = null
+    nextTick(() => scrollChatToBottom('smooth'))
+    return
+  }
+
   const content = messageInput.value
   roomStore.sendMessage(activeRoomId.value, {
     userId: selfId.value,
@@ -110,8 +130,48 @@ const handleSendMessage = () => {
 const handleComposerKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault()
+    if (!messageInput.value.trim() && !pendingImage.value) return
     handleSendMessage()
   }
+}
+
+const handlePickImage = () => {
+  fileInputRef.value?.click()
+}
+
+const handleFileChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  imageError.value = null
+  isCompressing.value = true
+
+  try {
+    const dataUrl = await compressImage(file)
+    pendingImage.value = {
+      dataUrl,
+      fileName: file.name,
+      size: dataUrl.length,
+    }
+  } catch (error) {
+    if (error instanceof ImageTooLargeError) {
+      imageError.value = '图片压缩后仍超过 2MB，请选择更小的图片'
+    } else if (error instanceof TypeError) {
+      imageError.value = error.message
+    } else {
+      imageError.value = '读取图片失败，请重试'
+    }
+    pendingImage.value = null
+  } finally {
+    isCompressing.value = false
+    input.value = ''
+  }
+}
+
+const clearPendingImage = () => {
+  pendingImage.value = null
+  imageError.value = null
 }
 
 const handleBackToLobby = () => {
@@ -253,13 +313,43 @@ watch(
       </div>
 
       <form v-if="!roomMissing" class="composer" @submit.prevent="handleSendMessage">
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept="image/*"
+          class="visually-hidden"
+          @change="handleFileChange"
+        />
+
+        <div v-if="pendingImage" class="composer-preview">
+          <img :src="pendingImage.dataUrl" alt="图片预览" />
+          <div class="preview-meta">
+            <span class="preview-name">{{ pendingImage.fileName }}</span>
+            <span class="preview-size">{{ Math.round(pendingImage.size / 1024) }} KB</span>
+          </div>
+          <button type="button" class="ghost preview-close" @click="clearPendingImage">取消</button>
+        </div>
+
+        <p v-if="imageError" class="image-error">{{ imageError }}</p>
+
         <textarea
           v-model="messageInput"
           rows="3"
           placeholder="输入消息，按 Enter 发送，Shift + Enter 换行"
           @keydown="handleComposerKeydown"
         ></textarea>
+
         <div class="composer-actions">
+          <div class="composer-left">
+            <button
+              type="button"
+              class="image-button"
+              :disabled="isCompressing"
+              @click="handlePickImage"
+            >
+              {{ isCompressing ? '压缩中...' : '📎 图片' }}
+            </button>
+          </div>
           <span class="composer-hint">Enter 发送 · Shift + Enter 换行</span>
           <button type="submit" class="cta primary">发送消息</button>
         </div>
