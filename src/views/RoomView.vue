@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { useRoomStore } from '@/stores/roomStore'
+import { compressImage, ImageTooLargeError } from '@/composables/useImageCompressor'
 
 const props = defineProps<{ roomId: string }>()
 
@@ -19,6 +20,11 @@ const activeRoomId = ref('')
 const roomMissing = ref(false)
 const messageInput = ref('')
 const chatWindowRef = ref<HTMLElement | null>(null)
+
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const pendingImage = ref<{ dataUrl: string; fileName: string; size: number } | null>(null)
+const imageError = ref<string | null>(null)
+const isCompressing = ref(false)
 
 const normalizedRoomId = computed(() => props.roomId.toUpperCase())
 
@@ -45,7 +51,11 @@ const ensureSelfIdentity = () => {
   if (typeof window === 'undefined') return
   let stored = window.localStorage.getItem(USER_ID_KEY)
   if (!stored || stored.trim().length === 0) {
-    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto && typeof crypto.randomUUID === 'function') {
+    if (
+      typeof crypto !== 'undefined' &&
+      'randomUUID' in crypto &&
+      typeof crypto.randomUUID === 'function'
+    ) {
       stored = crypto.randomUUID()
     } else {
       stored = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
@@ -96,6 +106,21 @@ const joinRoomFlow = (roomId: string) => {
 const handleSendMessage = () => {
   if (roomMissing.value || !activeRoomId.value) return
 
+  if (pendingImage.value) {
+    roomStore.sendImage(activeRoomId.value, {
+      userId: selfId.value,
+      username: username.value,
+      dataUrl: pendingImage.value.dataUrl,
+      fileName: pendingImage.value.fileName,
+      size: pendingImage.value.size,
+    })
+    pendingImage.value = null
+    imageError.value = null
+    messageInput.value = ''
+    nextTick(() => scrollChatToBottom('smooth'))
+    return
+  }
+
   const content = messageInput.value
   roomStore.sendMessage(activeRoomId.value, {
     userId: selfId.value,
@@ -110,8 +135,54 @@ const handleSendMessage = () => {
 const handleComposerKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault()
+    if (!messageInput.value.trim() && !pendingImage.value) return
     handleSendMessage()
   }
+}
+
+const handlePickImage = () => {
+  fileInputRef.value?.click()
+}
+
+const handleFileChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  imageError.value = null
+  isCompressing.value = true
+
+  try {
+    const dataUrl = await compressImage(file)
+    pendingImage.value = {
+      dataUrl,
+      fileName: file.name,
+      size: dataUrl.length,
+    }
+  } catch (error) {
+    if (error instanceof ImageTooLargeError) {
+      imageError.value = '图片压缩后仍超过 2MB，请选择更小的图片'
+    } else if (error instanceof TypeError) {
+      imageError.value = error.message
+    } else {
+      imageError.value = '读取图片失败，请重试'
+    }
+    pendingImage.value = null
+  } finally {
+    isCompressing.value = false
+    input.value = ''
+  }
+}
+
+const clearPendingImage = () => {
+  pendingImage.value = null
+  imageError.value = null
+}
+
+const openImage = (src: string) => {
+  if (typeof window === 'undefined') return
+  if (!src.startsWith('data:image/')) return
+  window.open(src, '_blank')
 }
 
 const handleBackToLobby = () => {
@@ -146,7 +217,7 @@ watch(
       leaveActiveRoom()
     }
     joinRoomFlow(nextId)
-  }
+  },
 )
 
 watch(username, (nextName) => {
@@ -164,7 +235,7 @@ watch(
     nextTick(() => {
       scrollChatToBottom('smooth')
     })
-  }
+  },
 )
 
 watch(
@@ -172,7 +243,7 @@ watch(
   (missing) => {
     if (missing) return
     nextTick(() => scrollChatToBottom('auto'))
-  }
+  },
 )
 </script>
 
@@ -203,7 +274,9 @@ watch(
             :class="{ self: participant.userId === selfId }"
           >
             <span class="member-name">{{ participant.username }}</span>
-            <span class="member-status">{{ participant.userId === selfId ? '你自己' : '在线' }}</span>
+            <span class="member-status">{{
+              participant.userId === selfId ? '你自己' : '在线'
+            }}</span>
           </div>
         </div>
         <p v-else-if="roomMissing" class="sidebar-hint">未找到该房间，返回大厅重新加入。</p>
@@ -227,8 +300,8 @@ watch(
               :key="message.id"
               class="message"
               :class="{
-                self: message.type === 'chat' && message.userId === selfId,
-                other: message.type === 'chat' && message.userId !== selfId,
+                self: message.type !== 'system' && message.userId === selfId,
+                other: message.type !== 'system' && message.userId !== selfId,
                 system: message.type === 'system',
               }"
             >
@@ -241,7 +314,17 @@ watch(
                   <span class="author">{{ message.username }}</span>
                   <time>{{ formatTimestamp(message.timestamp) }}</time>
                 </header>
-                <p class="body">{{ message.content }}</p>
+                <img
+                  v-if="message.type === 'image'"
+                  :src="message.content"
+                  class="message-image"
+                  alt="聊天图片"
+                  title="点击查看大图"
+                  loading="lazy"
+                  tabindex="0"
+                  @click="openImage(message.content)"
+                />
+                <p v-else class="body">{{ message.content }}</p>
               </div>
             </li>
           </ul>
@@ -253,13 +336,43 @@ watch(
       </div>
 
       <form v-if="!roomMissing" class="composer" @submit.prevent="handleSendMessage">
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept="image/*"
+          class="visually-hidden"
+          @change="handleFileChange"
+        />
+
+        <div v-if="pendingImage" class="composer-preview">
+          <img :src="pendingImage.dataUrl" alt="图片预览" />
+          <div class="preview-meta">
+            <span class="preview-name">{{ pendingImage.fileName }}</span>
+            <span class="preview-size">{{ Math.round(pendingImage.size / 1024) }} KB</span>
+          </div>
+          <button type="button" class="ghost preview-close" @click="clearPendingImage">取消</button>
+        </div>
+
+        <p v-if="imageError" class="image-error" aria-live="polite">{{ imageError }}</p>
+
         <textarea
           v-model="messageInput"
           rows="3"
           placeholder="输入消息，按 Enter 发送，Shift + Enter 换行"
           @keydown="handleComposerKeydown"
         ></textarea>
+
         <div class="composer-actions">
+          <div class="composer-left">
+            <button
+              type="button"
+              class="image-button"
+              :disabled="isCompressing"
+              @click="handlePickImage"
+            >
+              {{ isCompressing ? '压缩中...' : '📎 图片' }}
+            </button>
+          </div>
           <span class="composer-hint">Enter 发送 · Shift + Enter 换行</span>
           <button type="submit" class="cta primary">发送消息</button>
         </div>
@@ -348,7 +461,9 @@ h1 {
   background: rgba(236, 253, 245, 0.9);
   border: 1px solid rgba(148, 163, 184, 0.35);
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
 }
 
 .ghost:hover {
@@ -416,8 +531,6 @@ h1 {
 }
 
 .chat-panel {
-  /* flex: 1 1 0%;*/
-  /* min-height: 497px; */
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -574,7 +687,9 @@ h1 {
   resize: none;
   font-size: 1rem;
   line-height: 1.6;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .composer textarea:focus {
@@ -604,7 +719,9 @@ h1 {
   font-weight: 600;
   border: none;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .cta.primary {
@@ -626,6 +743,124 @@ h1 {
 
   .room-left {
     display: none;
+  }
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.composer-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: rgba(236, 253, 245, 0.6);
+  border-radius: 14px;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.composer-preview img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.preview-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.preview-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-size {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.preview-close {
+  flex-shrink: 0;
+}
+
+.image-error {
+  margin: 0;
+  color: #dc2626;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.composer-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.image-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.7rem 1.2rem;
+  border-radius: 999px;
+  font-weight: 600;
+  color: #047857;
+  background: rgba(236, 253, 245, 0.9);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
+}
+
+.image-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: rgba(190, 242, 100, 0.25);
+}
+
+.image-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.message-image {
+  max-width: min(240px, 60vw);
+  max-height: 240px;
+  border-radius: 12px;
+  cursor: pointer;
+  object-fit: cover;
+  display: block;
+}
+
+.message-image:hover {
+  opacity: 0.92;
+}
+
+.message-image:focus {
+  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1090px) {
+  .message-image {
+    max-width: min(200px, 70vw);
   }
 }
 </style>

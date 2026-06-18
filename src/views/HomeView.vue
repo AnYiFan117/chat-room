@@ -236,7 +236,9 @@ h1 {
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.4);
   font-size: 1rem;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .username-input input:focus {
@@ -266,7 +268,10 @@ h1 {
   font-weight: 600;
   border: none;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
 }
 
 .cta.primary {
@@ -296,7 +301,9 @@ h1 {
   background: rgba(236, 253, 245, 0.75);
   border: 1px solid rgba(148, 163, 184, 0.35);
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
 }
 
 .ghost:hover {
@@ -403,7 +410,9 @@ h1 {
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.45);
   font-size: 1rem;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .modal-panel input:focus {
