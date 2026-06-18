@@ -138,7 +138,7 @@ const decryptContent = (roomId: string, payload: string): string => {
 }
 
 // 消息类型分为普通聊天与系统通知
-type MessageType = 'chat' | 'system'
+type MessageType = 'chat' | 'system' | 'image'
 
 // 聊天消息的存储结构
 export interface RoomMessage {
@@ -149,6 +149,10 @@ export interface RoomMessage {
   content: string
   timestamp: number
   encrypted?: boolean
+  fileName?: string
+  size?: number
+  width?: number
+  height?: number
 }
 
 // 聊天室参与者信息
@@ -192,6 +196,17 @@ const generateMessageId = () => {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
 
+const buildEncryptedMessage = (
+  roomId: string,
+  partial: Omit<RoomMessage, 'id' | 'timestamp' | 'encrypted'>
+): RoomMessage => ({
+  id: generateMessageId(),
+  ...partial,
+  content: encryptContent(roomId, partial.content),
+  timestamp: Date.now(),
+  encrypted: true,
+})
+
 // 从 localStorage 读取已知房间列表
 const readKnownRooms = (): string[] => {
   if (typeof window === 'undefined') return []
@@ -225,7 +240,8 @@ const sanitizeMessage = (payload: unknown, roomId: string): RoomMessage | null =
   if (!payload || typeof payload !== 'object') return null
   const message = payload as Partial<RoomMessage>
 
-  const type: MessageType = message.type === 'system' ? 'system' : 'chat'
+  const type: MessageType =
+    message.type === 'system' ? 'system' : message.type === 'image' ? 'image' : 'chat'
   const rawContent = typeof message.content === 'string' ? message.content : ''
   const decryptedContent = decryptContent(roomId, rawContent)
   const normalizedContent = decryptedContent.trim()
@@ -236,10 +252,17 @@ const sanitizeMessage = (payload: unknown, roomId: string): RoomMessage | null =
     id: typeof message.id === 'string' && message.id.trim().length > 0 ? message.id : generateMessageId(),
     type,
     userId: typeof message.userId === 'string' ? message.userId : 'system',
-    username: typeof message.username === 'string' && message.username.trim().length > 0 ? message.username : DEFAULT_USERNAME,
+    username:
+      typeof message.username === 'string' && message.username.trim().length > 0
+        ? message.username
+        : DEFAULT_USERNAME,
     content: normalizedContent,
     timestamp: typeof message.timestamp === 'number' ? message.timestamp : Date.now(),
     encrypted: wasEncrypted,
+    fileName: typeof message.fileName === 'string' ? message.fileName : undefined,
+    size: typeof message.size === 'number' ? message.size : undefined,
+    width: typeof message.width === 'number' ? message.width : undefined,
+    height: typeof message.height === 'number' ? message.height : undefined,
   }
 }
 
@@ -380,15 +403,34 @@ export const useRoomStore = defineStore('room', {
       if (!trimmedContent) return
 
       session.yMessages.push([
-        {
-          id: generateMessageId(),
+        buildEncryptedMessage(normalizedId, {
           type: 'chat',
           userId: payload.userId,
           username: payload.username.trim().length > 0 ? payload.username.trim() : DEFAULT_USERNAME,
-          content: encryptContent(normalizedId, trimmedContent),
-          timestamp: Date.now(),
-          encrypted: true,
-        },
+          content: trimmedContent,
+        }),
+      ])
+    },
+    sendImage(
+      roomId: string,
+      payload: { userId: string; username: string; dataUrl: string; fileName?: string; size?: number }
+    ) {
+      const normalizedId = normalizeRoomId(roomId)
+      const session = this.sessions[normalizedId]
+      if (!session) return
+
+      const trimmedDataUrl = payload.dataUrl.trim()
+      if (!trimmedDataUrl) return
+
+      session.yMessages.push([
+        buildEncryptedMessage(normalizedId, {
+          type: 'image',
+          userId: payload.userId,
+          username: payload.username.trim().length > 0 ? payload.username.trim() : DEFAULT_USERNAME,
+          content: trimmedDataUrl,
+          fileName: payload.fileName,
+          size: payload.size,
+        }),
       ])
     },
     // 切换本地昵称并广播
