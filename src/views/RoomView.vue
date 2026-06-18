@@ -315,6 +315,7 @@ watch(
                   alt="聊天图片"
                   title="点击查看大图"
                   loading="lazy"
+                  tabindex="0"
                   @click="openImage(message.content)"
                 />
                 <p v-else class="body">{{ message.content }}</p>
@@ -522,8 +523,6 @@ h1 {
 }
 
 .chat-panel {
-  /* flex: 1 1 0%;*/
-  /* min-height: 497px; */
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -742,6 +741,7 @@ h1 {
   margin: -1px;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
 }
@@ -837,6 +837,11 @@ h1 {
 
 .message-image:hover {
   opacity: 0.92;
+}
+
+.message-image:focus {
+  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline-offset: 2px;
 }
 
 @media (max-width: 1090px) {
