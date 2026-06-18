@@ -176,9 +176,9 @@ const clearPendingImage = () => {
 }
 
 const openImage = (src: string) => {
-  if (typeof window !== 'undefined') {
-    window.open(src, '_blank')
-  }
+  if (typeof window === 'undefined') return
+  if (!src.startsWith('data:image/')) return
+  window.open(src, '_blank')
 }
 
 const handleBackToLobby = () => {
@@ -313,6 +313,7 @@ watch(
                   :src="message.content"
                   class="message-image"
                   alt="聊天图片"
+                  title="点击查看大图"
                   loading="lazy"
                   @click="openImage(message.content)"
                 />
