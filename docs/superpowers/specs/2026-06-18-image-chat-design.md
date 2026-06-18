@@ -74,6 +74,7 @@ type Message = ChatMessage | SystemMessage | ImageMessage
 新增文件：`src/composables/useImageCompressor.ts`
 
 职责：
+
 - 校验文件类型是否为图片
 - 加载图片并等比缩放
 - 使用 canvas 压缩为 JPEG
@@ -102,6 +103,7 @@ export async function compressImage(
 ```
 
 默认参数：
+
 - maxWidth: 1200
 - maxHeight: 1200
 - quality: 0.8
@@ -118,6 +120,7 @@ async function sendImage(roomId: string, file: File, user: UserInfo): Promise<vo
 ```
 
 流程：
+
 1. 调用 `compressImage(file)` 获得 Base64
 2. 构造 `ImageMessage`
 3. 调用现有 `sendMessage` 内部的加密/写入逻辑
@@ -135,6 +138,7 @@ function pushMessage(roomId: string, message: Message): void
 修改文件：`src/views/RoomView.vue`
 
 新增交互：
+
 - 输入区左侧增加 📎 图片选择按钮
 - 隐藏的原生 `<input type="file" accept="image/*">`
 - 选择图片后显示预览条（缩略图 + 文件名 + 大小 + 取消按钮）
