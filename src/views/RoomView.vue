@@ -112,6 +112,7 @@ const handleSendMessage = () => {
     })
     pendingImage.value = null
     imageError.value = null
+    messageInput.value = ''
     nextTick(() => scrollChatToBottom('smooth'))
     return
   }
@@ -330,7 +331,7 @@ watch(
           <button type="button" class="ghost preview-close" @click="clearPendingImage">取消</button>
         </div>
 
-        <p v-if="imageError" class="image-error">{{ imageError }}</p>
+        <p v-if="imageError" class="image-error" aria-live="polite">{{ imageError }}</p>
 
         <textarea
           v-model="messageInput"
