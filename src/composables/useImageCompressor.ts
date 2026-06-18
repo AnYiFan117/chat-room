@@ -12,6 +12,11 @@ export interface CompressImageOptions {
   maxSize?: number
 }
 
+/**
+ * 压缩图片并返回 base64 Data URL。
+ *
+ * 输出格式固定为 image/jpeg，以控制大小；透明背景会被转换为白色。
+ */
 export async function compressImage(
   file: File,
   options: CompressImageOptions = {}
@@ -56,9 +61,14 @@ export async function compressImage(
               reject(new Error('图片压缩失败'))
               return
             }
+            if (blob.size > maxSize) {
+              reject(new ImageTooLargeError())
+              return
+            }
             const reader = new FileReader()
             reader.onload = () => resolve(reader.result as string)
             reader.onerror = () => reject(new Error('读取图片失败'))
+            reader.onabort = () => reject(new Error('读取图片被中断'))
             reader.readAsDataURL(blob)
           },
           'image/jpeg',
@@ -66,14 +76,9 @@ export async function compressImage(
         )
       }
       image.onerror = () => reject(new Error('加载图片失败'))
+      image.onabort = () => reject(new Error('加载图片被中断'))
       image.src = objectUrl
     })
-
-    const base64 = dataUrl.split(',')[1] ?? ''
-    const estimatedSize = Math.round((base64.length * 3) / 4)
-    if (estimatedSize > maxSize) {
-      throw new ImageTooLargeError()
-    }
 
     return dataUrl
   } finally {
