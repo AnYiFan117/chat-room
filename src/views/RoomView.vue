@@ -867,4 +867,147 @@ h1 {
     max-width: min(160px, 65vw);
   }
 }
+
+html.dark .room-header {
+  background: rgba(6, 78, 59, 0.6);
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
+html.dark .room-tag {
+  color: #34d399;
+}
+
+html.dark h1,
+html.dark h2,
+html.dark .user-name {
+  color: #e2e8f0;
+}
+
+html.dark .user-label {
+  color: #94a3b8;
+}
+
+html.dark .ghost {
+  color: #e2e8f0;
+  background: rgba(6, 78, 59, 0.5);
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
+html.dark .ghost:hover {
+  background: rgba(16, 185, 129, 0.25);
+}
+
+html.dark .sidebar {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(74, 222, 128, 0.15);
+}
+
+html.dark .sidebar h2 {
+  color: #e2e8f0;
+}
+
+html.dark .member-card {
+  background: rgba(6, 78, 59, 0.5);
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
+html.dark .member-name {
+  color: #e2e8f0;
+}
+
+html.dark .member-status {
+  color: #34d399;
+}
+
+html.dark .sidebar-hint {
+  color: #94a3b8;
+}
+
+html.dark .chat-panel {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(74, 222, 128, 0.15);
+}
+
+html.dark .chat-empty h3,
+html.dark .chat-missing h2 {
+  color: #e2e8f0;
+}
+
+html.dark .chat-empty p,
+html.dark .chat-missing p {
+  color: #94a3b8;
+}
+
+html.dark .message-bubble {
+  background: rgba(59, 130, 246, 0.22);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+html.dark .message.self .message-bubble {
+  background: rgba(16, 185, 129, 0.22);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+html.dark .message-bubble header {
+  color: #7dd3fc;
+}
+
+html.dark .message.self .message-bubble header {
+  color: #6ee7b7;
+}
+
+html.dark .message-bubble .body {
+  color: #e2e8f0;
+}
+
+html.dark .message-system {
+  background: rgba(148, 163, 184, 0.15);
+  color: #cbd5e1;
+}
+
+html.dark .message-system time {
+  color: #94a3b8;
+}
+
+html.dark .composer textarea {
+  background: rgba(15, 23, 42, 0.7);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #e2e8f0;
+}
+
+html.dark .composer textarea:focus {
+  border-color: rgba(59, 130, 246, 0.6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+html.dark .composer-hint {
+  color: #94a3b8;
+}
+
+html.dark .image-button {
+  color: #34d399;
+  background: rgba(6, 78, 59, 0.5);
+  border-color: rgba(74, 222, 128, 0.25);
+}
+
+html.dark .image-button:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.25);
+}
+
+html.dark .composer-preview {
+  background: rgba(6, 78, 59, 0.4);
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
+html.dark .preview-name {
+  color: #e2e8f0;
+}
+
+html.dark .preview-size {
+  color: #94a3b8;
+}
+
+html.dark .image-error {
+  color: #fca5a5;
+}
 </style>

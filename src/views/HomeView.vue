@@ -16,7 +16,7 @@ const joinModalOpen = ref(false)
 const joinRoomId = ref('')
 const joinError = ref('')
 
-const APP_VERSION = '0.1.0'
+const APP_VERSION = '0.2.0'
 
 let feedbackTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -475,5 +475,91 @@ h1 {
   .cta {
     width: 100%;
   }
+}
+
+html.dark .hero {
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.95), rgba(15, 23, 42, 0.95));
+  color: #e2e8f0;
+}
+
+html.dark .hero-content {
+  color: #e2e8f0;
+}
+
+html.dark .hero-tagline {
+  color: #34d399;
+}
+
+html.dark .version-badge {
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(52, 211, 153, 0.4);
+}
+
+html.dark .hero-copy {
+  color: #94a3b8;
+}
+
+html.dark .username-card {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(74, 222, 128, 0.15);
+}
+
+html.dark .username-card label {
+  color: #e2e8f0;
+}
+
+html.dark .username-input input {
+  background: rgba(15, 23, 42, 0.7);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #e2e8f0;
+}
+
+html.dark .username-input input:focus {
+  border-color: rgba(52, 211, 153, 0.6);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
+}
+
+html.dark .username-hint {
+  color: #94a3b8;
+}
+
+html.dark .cta.secondary {
+  color: #34d399;
+  background: rgba(6, 78, 59, 0.6);
+  border-color: rgba(74, 222, 128, 0.25);
+}
+
+html.dark .ghost {
+  color: #e2e8f0;
+  background: rgba(6, 78, 59, 0.5);
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
+html.dark .ghost:hover {
+  background: rgba(16, 185, 129, 0.25);
+}
+
+html.dark .feedback {
+  color: #34d399;
+}
+
+html.dark .modal-panel {
+  background: #1e293b;
+}
+
+html.dark .modal-panel h3,
+html.dark .modal-label {
+  color: #e2e8f0;
+}
+
+html.dark .modal-copy {
+  color: #94a3b8;
+}
+
+html.dark .modal-panel input {
+  background: rgba(15, 23, 42, 0.7);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #e2e8f0;
 }
 </style>

@@ -209,4 +209,52 @@ button:hover {
     padding: 1.5rem;
   }
 }
+
+html.dark .contact {
+  background: #0f172a;
+}
+
+html.dark header {
+  color: #e2e8f0;
+}
+
+html.dark .eyebrow {
+  color: #34d399;
+}
+
+html.dark .lead {
+  color: #94a3b8;
+}
+
+html.dark .contact-form,
+html.dark .contact-meta {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
+html.dark label {
+  color: #e2e8f0;
+}
+
+html.dark input,
+html.dark textarea {
+  background: rgba(15, 23, 42, 0.7);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #e2e8f0;
+}
+
+html.dark input:focus,
+html.dark textarea:focus {
+  border-color: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+  background: rgba(15, 23, 42, 0.9);
+}
+
+html.dark .contact-meta h2 {
+  color: #e2e8f0;
+}
+
+html.dark .contact-meta ul {
+  color: #94a3b8;
+}
 </style>
