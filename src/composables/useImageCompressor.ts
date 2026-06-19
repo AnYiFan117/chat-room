@@ -12,6 +12,11 @@ export interface CompressImageOptions {
   maxSize?: number
 }
 
+// WebRTC SCTP data channel 的单条消息上限在 Chromium 中约为 256 KB。
+// 图片直接以 Data URL 形式同步，因此原始 Data URL 必须控制在更小范围内，
+// 才能确保 y-webrtc 同步更新不会撑爆数据通道。
+export const DEFAULT_MAX_IMAGE_SIZE = 150 * 1024 // 150 KB
+
 /**
  * 压缩图片并返回 base64 Data URL。
  *
@@ -21,7 +26,12 @@ export async function compressImage(
   file: File,
   options: CompressImageOptions = {},
 ): Promise<string> {
-  const { maxWidth = 1200, maxHeight = 1200, quality = 0.8, maxSize = 2 * 1024 * 1024 } = options
+  const {
+    maxWidth = 800,
+    maxHeight = 800,
+    quality = 0.7,
+    maxSize = DEFAULT_MAX_IMAGE_SIZE,
+  } = options
 
   if (!file.type.startsWith('image/')) {
     throw new TypeError('请选择图片文件')

@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { useRoomStore } from '@/stores/roomStore'
-import { compressImage, ImageTooLargeError } from '@/composables/useImageCompressor'
+import { compressImage, DEFAULT_MAX_IMAGE_SIZE, ImageTooLargeError } from '@/composables/useImageCompressor'
 
 const props = defineProps<{ roomId: string }>()
 
@@ -161,7 +161,8 @@ const handleFileChange = async (event: Event) => {
     }
   } catch (error) {
     if (error instanceof ImageTooLargeError) {
-      imageError.value = '图片压缩后仍超过 2MB，请选择更小的图片'
+      const limitKb = Math.round(DEFAULT_MAX_IMAGE_SIZE / 1024)
+      imageError.value = `图片压缩后仍超过 ${limitKb} KB，请选择更小的图片`
     } else if (error instanceof TypeError) {
       imageError.value = error.message
     } else {
