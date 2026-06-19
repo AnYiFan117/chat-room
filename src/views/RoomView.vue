@@ -25,6 +25,7 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const pendingImage = ref<{ dataUrl: string; fileName: string; size: number } | null>(null)
 const imageError = ref<string | null>(null)
 const isCompressing = ref(false)
+const membersOpen = ref(false)
 
 const normalizedRoomId = computed(() => props.roomId.toUpperCase())
 
@@ -186,6 +187,10 @@ const openImage = (src: string) => {
   window.open(src, '_blank')
 }
 
+const toggleMembers = () => {
+  membersOpen.value = !membersOpen.value
+}
+
 const handleBackToLobby = () => {
   leaveActiveRoom()
   router.push('/')
@@ -291,6 +296,16 @@ watch(
     </div>
 
     <div class="chat-panel">
+      <header class="chat-header">
+        <div class="chat-header-meta">
+          <span class="chat-header-room">{{ normalizedRoomId }}</span>
+          <span v-if="participants.length" class="chat-header-count">{{ participants.length }} 人在线</span>
+        </div>
+        <button type="button" class="ghost members-toggle" @click="toggleMembers">
+          成员
+        </button>
+      </header>
+
       <div ref="chatWindowRef" class="chat-window">
         <template v-if="roomMissing">
           <div class="chat-missing">
@@ -340,6 +355,27 @@ watch(
           </div>
         </template>
       </div>
+
+      <aside class="mobile-members" :class="{ open: membersOpen }" aria-label="在线成员">
+        <div class="mobile-members-header">
+          <h2>在线成员</h2>
+          <button type="button" class="ghost" @click="toggleMembers">关闭</button>
+        </div>
+        <div v-if="participants.length" class="member-list">
+          <div
+            v-for="participant in participants"
+            :key="participant.userId"
+            class="member-card"
+            :class="{ self: participant.userId === selfId }"
+          >
+            <span class="member-name">{{ participant.username }}</span>
+            <span class="member-status">{{
+              participant.userId === selfId ? '你自己' : '在线'
+            }}</span>
+          </div>
+        </div>
+        <p v-else class="sidebar-hint">暂无其他成员加入，邀请好友一起畅聊。</p>
+      </aside>
 
       <form v-if="!roomMissing" class="composer" @submit.prevent="handleSendMessage">
         <input
@@ -592,6 +628,7 @@ h1 {
 }
 
 .chat-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -602,6 +639,78 @@ h1 {
   box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
   box-sizing: border-box;
   overflow: hidden;
+}
+
+.chat-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.chat-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.chat-header-room {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #022c22;
+  letter-spacing: 0.04em;
+}
+
+.chat-header-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #059669;
+  background: rgba(16, 185, 129, 0.12);
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+}
+
+.members-toggle {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+.mobile-members {
+  display: none;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 240px;
+  z-index: 10;
+  background: #ffffff;
+  border-left: 1px solid rgba(226, 232, 240, 0.86);
+  box-shadow: -12px 0 36px rgba(15, 23, 42, 0.1);
+  flex-direction: column;
+  padding: 1rem;
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+}
+
+.mobile-members.open {
+  transform: translateX(0);
+}
+
+.mobile-members-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.mobile-members-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: #0f172a;
 }
 
 .chat-window {
@@ -813,6 +922,33 @@ h1 {
   .room-left {
     display: none;
   }
+
+  .chat-header,
+  .mobile-members {
+    display: flex;
+  }
+}
+
+html.dark .chat-header {
+  border-bottom-color: rgba(74, 222, 128, 0.15);
+}
+
+html.dark .chat-header-room {
+  color: #f0fdf4;
+}
+
+html.dark .chat-header-count {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+}
+
+html.dark .mobile-members {
+  background: rgba(15, 23, 42, 0.95);
+  border-left-color: rgba(74, 222, 128, 0.15);
+}
+
+html.dark .mobile-members-header h2 {
+  color: #f0fdf4;
 }
 .visually-hidden {
   position: absolute;

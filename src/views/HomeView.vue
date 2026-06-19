@@ -18,7 +18,7 @@ const joinError = ref('')
 const isLoading = ref(false)
 const loadingMessage = ref('')
 
-const APP_VERSION = '0.2.5'
+const APP_VERSION = '0.2.6'
 const FULL_TITLE = '欢迎来到 Blow 在线聊天室'
 
 let feedbackTimer: ReturnType<typeof setTimeout> | null = null
