@@ -549,7 +549,9 @@ export const useRoomStore = defineStore('room', {
           peerOpts: {
             trickle: true,
             config: {
-              iceTransportPolicy: 'relay',
+              // 默认允许直连 P2P，无法直连时再走 TURN 中继，
+              // 避免 relay-only 在部分网络或本地测试时无法建立连接。
+              iceTransportPolicy: 'all',
               iceServers,
             },
           },
@@ -572,6 +574,21 @@ export const useRoomStore = defineStore('room', {
           /* 会在下方替换为真正的清理逻辑 */
         },
       }
+
+      // 调试日志：观察连接与同步状态
+      const onStatus = (event: { connected: boolean }) => {
+        console.log(`[webrtc ${roomId}] connected:`, event.connected)
+      }
+      const onSynced = (event: { synced: boolean }) => {
+        console.log(`[webrtc ${roomId}] synced:`, event.synced)
+      }
+      const onPeers = (event: { added: string[]; removed: string[] }) => {
+        console.log(`[webrtc ${roomId}] peers added:`, event.added, 'removed:', event.removed)
+      }
+
+      provider.on('status', onStatus)
+      provider.on('synced', onSynced)
+      provider.on('peers', onPeers)
 
       // 将远端消息同步到 store，并保证按时间排序
       const updateMessages = () => {
@@ -623,6 +640,9 @@ export const useRoomStore = defineStore('room', {
         // 解绑监听，防止内存泄露
         yMessages.unobserve(updateMessages)
         awareness.off('change', updateParticipants)
+        provider.off('status', onStatus)
+        provider.off('synced', onSynced)
+        provider.off('peers', onPeers)
         provider.destroy()
         doc.destroy()
       }
