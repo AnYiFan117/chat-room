@@ -18,7 +18,7 @@ const joinError = ref('')
 const isLoading = ref(false)
 const loadingMessage = ref('')
 
-const APP_VERSION = '0.2.3'
+const APP_VERSION = '0.2.4'
 const FULL_TITLE = '欢迎来到 Blow 在线聊天室'
 
 let feedbackTimer: ReturnType<typeof setTimeout> | null = null
@@ -230,7 +230,10 @@ onBeforeUnmount(() => {
   max-height: calc(100vh - 80px);
   overflow: hidden;
   padding: 1.5rem;
-  background: linear-gradient(160deg, #f0fdf4 0%, #ecfdf5 40%, #d1fae5 100%);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(52, 211, 153, 0.18) 0%, transparent 35%),
+    radial-gradient(circle at 80% 80%, rgba(59, 130, 246, 0.14) 0%, transparent 35%),
+    linear-gradient(160deg, #f0fdf4 0%, #ecfdf5 45%, #d1fae5 100%);
   color: #0f172a;
 }
 
@@ -245,45 +248,45 @@ onBeforeUnmount(() => {
 .glow {
   position: absolute;
   border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.5;
-  animation: drift 20s ease-in-out infinite;
+  filter: blur(70px);
+  opacity: 0.65;
+  will-change: transform;
+  animation: drift 12s ease-in-out infinite alternate;
 }
 
 .glow-1 {
-  width: 420px;
-  height: 420px;
-  top: -10%;
-  left: -8%;
-  background: rgba(52, 211, 153, 0.55);
+  width: 380px;
+  height: 380px;
+  top: -8%;
+  left: -6%;
+  background: radial-gradient(circle, rgba(52, 211, 153, 0.75) 0%, rgba(16, 185, 129, 0.4) 70%);
   animation-delay: 0s;
 }
 
 .glow-2 {
-  width: 360px;
-  height: 360px;
-  bottom: -12%;
-  right: -6%;
-  background: rgba(16, 185, 129, 0.45);
-  animation-delay: -7s;
+  width: 320px;
+  height: 320px;
+  bottom: -10%;
+  right: -4%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.7) 0%, rgba(37, 99, 235, 0.35) 70%);
+  animation-delay: -4s;
 }
 
 .glow-3 {
-  width: 240px;
-  height: 240px;
-  top: 40%;
-  left: 55%;
-  background: rgba(59, 130, 246, 0.25);
-  animation-delay: -14s;
+  width: 260px;
+  height: 260px;
+  top: 45%;
+  left: 60%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.55) 0%, rgba(124, 58, 237, 0.25) 70%);
+  animation-delay: -8s;
 }
 
 @keyframes drift {
-  0%,
-  100% {
-    transform: translateY(0) scale(1);
+  0% {
+    transform: translate(0, 0) scale(1);
   }
-  50% {
-    transform: translateY(-30px) scale(1.08);
+  100% {
+    transform: translate(40px, -50px) scale(1.15);
   }
 }
 
@@ -632,15 +635,15 @@ html.dark .hero {
 }
 
 html.dark .glow-1 {
-  background: rgba(16, 185, 129, 0.45);
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.6) 0%, rgba(5, 150, 105, 0.25) 70%);
 }
 
 html.dark .glow-2 {
-  background: rgba(52, 211, 153, 0.35);
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.55) 0%, rgba(37, 99, 235, 0.2) 70%);
 }
 
 html.dark .glow-3 {
-  background: rgba(59, 130, 246, 0.25);
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.45) 0%, rgba(124, 58, 237, 0.15) 70%);
 }
 
 html.dark .hero-card {
