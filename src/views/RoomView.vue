@@ -399,35 +399,35 @@ watch(
 .orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.35;
+  filter: blur(70px);
+  opacity: 0.55;
   animation: float 18s ease-in-out infinite;
 }
 
 .orb-1 {
-  width: 300px;
-  height: 300px;
-  top: 10%;
-  left: 5%;
-  background: rgba(52, 211, 153, 0.45);
+  width: 360px;
+  height: 360px;
+  top: 8%;
+  left: 3%;
+  background: rgba(52, 211, 153, 0.55);
   animation-delay: 0s;
 }
 
 .orb-2 {
-  width: 260px;
-  height: 260px;
-  bottom: 15%;
-  right: 5%;
-  background: rgba(59, 130, 246, 0.4);
+  width: 320px;
+  height: 320px;
+  bottom: 12%;
+  right: 3%;
+  background: rgba(59, 130, 246, 0.5);
   animation-delay: -6s;
 }
 
 .orb-3 {
-  width: 180px;
-  height: 180px;
-  top: 45%;
+  width: 240px;
+  height: 240px;
+  top: 42%;
   left: 50%;
-  background: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.45);
   animation-delay: -12s;
 }
 
@@ -437,7 +437,7 @@ watch(
     transform: translateY(0) scale(1);
   }
   50% {
-    transform: translateY(-24px) scale(1.05);
+    transform: translateY(-28px) scale(1.06);
   }
 }
 
@@ -448,7 +448,8 @@ watch(
   grid-template-columns: 150px minmax(0, 1fr);
   grid-template-rows: auto;
   gap: 1rem;
-  max-width: 1100px;
+  width: min(1400px, 96%);
+  max-width: 1400px;
   margin: 0 auto;
   padding: clamp(1rem, 3vw, 2rem);
   box-sizing: border-box;
@@ -1074,14 +1075,14 @@ html.dark .image-error {
 }
 
 html.dark .orb-1 {
-  background: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.45);
 }
 
 html.dark .orb-2 {
-  background: rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.45);
 }
 
 html.dark .orb-3 {
-  background: rgba(52, 211, 153, 0.28);
+  background: rgba(52, 211, 153, 0.38);
 }
 </style>

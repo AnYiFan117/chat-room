@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { useRoomStore } from '@/stores/roomStore'
@@ -15,10 +15,32 @@ const copyFeedback = ref('')
 const joinModalOpen = ref(false)
 const joinRoomId = ref('')
 const joinError = ref('')
+const isLoading = ref(false)
+const loadingMessage = ref('')
 
-const APP_VERSION = '0.2.1'
+const APP_VERSION = '0.2.2'
+const FULL_TITLE = '欢迎来到 Blow 在线聊天室'
 
 let feedbackTimer: ReturnType<typeof setTimeout> | null = null
+let typewriterTimer: ReturnType<typeof setTimeout> | null = null
+
+const displayedTitle = ref('')
+
+const startTypewriter = () => {
+  displayedTitle.value = ''
+  if (typewriterTimer) {
+    clearTimeout(typewriterTimer)
+  }
+  let index = 0
+  const step = () => {
+    if (index < FULL_TITLE.length) {
+      displayedTitle.value += FULL_TITLE[index]
+      index += 1
+      typewriterTimer = setTimeout(step, 85)
+    }
+  }
+  step()
+}
 
 const ensureUsernameLoaded = () => {
   if (typeof window === 'undefined') return
@@ -48,7 +70,12 @@ const handleCreateRoom = async () => {
     showFeedback(`房间号：${roomId}`)
   }
 
-  router.push({ name: 'room', params: { roomId } })
+  isLoading.value = true
+  loadingMessage.value = '正在创建房间…'
+  setTimeout(() => {
+    isLoading.value = false
+    router.push({ name: 'room', params: { roomId } })
+  }, 600)
 }
 
 const openJoinModal = () => {
@@ -72,9 +99,14 @@ const handleJoinRoom = () => {
   }
 
   roomStore.markRoomKnown(roomId)
-
   closeJoinModal()
-  router.push({ name: 'room', params: { roomId } })
+
+  isLoading.value = true
+  loadingMessage.value = '正在加入房间…'
+  setTimeout(() => {
+    isLoading.value = false
+    router.push({ name: 'room', params: { roomId } })
+  }, 600)
 }
 
 const showFeedback = (message: string) => {
@@ -91,6 +123,16 @@ const showFeedback = (message: string) => {
 onMounted(() => {
   roomStore.ensureLoaded()
   ensureUsernameLoaded()
+  startTypewriter()
+})
+
+onBeforeUnmount(() => {
+  if (feedbackTimer) {
+    clearTimeout(feedbackTimer)
+  }
+  if (typewriterTimer) {
+    clearTimeout(typewriterTimer)
+  }
 })
 </script>
 
@@ -98,7 +140,7 @@ onMounted(() => {
   <section class="hero">
     <div class="hero-content">
       <p class="hero-tagline">实时连接 · 畅聊无阻 <span class="version-badge">v{{ APP_VERSION }}</span></p>
-      <h1>欢迎来到 Blow 在线聊天室</h1>
+      <h1>{{ displayedTitle }}<span class="typewriter-cursor">|</span></h1>
       <p class="hero-copy">
         在这里与朋友或团队快速开启对话，分享灵感与想法。无需复杂配置，直接创建或加入房间，开始实时聊天体验。
       </p>
@@ -167,6 +209,15 @@ onMounted(() => {
       </div>
     </div>
   </teleport>
+
+  <teleport to="body">
+    <div v-if="isLoading" class="modal-mask loading-mask">
+      <div class="loading-panel">
+        <span class="loading-spinner" aria-hidden="true"></span>
+        <p class="loading-message">{{ loadingMessage }}</p>
+      </div>
+    </div>
+  </teleport>
 </template>
 
 <style scoped>
@@ -220,6 +271,25 @@ h1 {
   margin: 0;
   font-size: clamp(2rem, 4vw, 3rem);
   line-height: 1.1;
+  min-height: 1.1em;
+}
+
+.typewriter-cursor {
+  display: inline-block;
+  width: 0.08em;
+  color: #047857;
+  font-weight: 300;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
 
 .hero-copy {
@@ -440,127 +510,55 @@ h1 {
     box-shadow 0.2s ease;
 }
 
-.modal-panel input:focus {
-  outline: none;
-  border-color: rgba(16, 185, 129, 0.65);
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.24);
+.loading-mask {
+  cursor: wait;
 }
 
-.modal-error {
-  margin: 0;
-  color: #dc2626;
-  font-weight: 600;
-}
-
-.modal-actions {
-  margin-top: 0.5rem;
+.loading-panel {
+  width: min(280px, 100%);
+  padding: 2rem;
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
   display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
 }
 
-@media (max-width: 640px) {
-  .hero {
-    padding: 2rem 1.5rem;
-  }
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(16, 185, 129, 0.2);
+  border-top-color: #10b981;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
 
-  .username-input {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .ghost {
-    width: 100%;
-  }
-
-  .hero-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .cta {
-    width: 100%;
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
-html.dark .hero {
-  background: linear-gradient(135deg, rgba(6, 78, 59, 0.95), rgba(15, 23, 42, 0.95));
-  color: #e2e8f0;
+.loading-message {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
 }
 
-html.dark .hero-content {
-  color: #e2e8f0;
-}
-
-html.dark .hero-tagline {
-  color: #34d399;
-}
-
-html.dark .version-badge {
-  color: #a7f3d0;
-  background: rgba(16, 185, 129, 0.2);
-  border-color: rgba(52, 211, 153, 0.4);
-}
-
-html.dark .hero-copy {
-  color: #94a3b8;
-}
-
-html.dark .username-card {
-  background: rgba(30, 41, 59, 0.85);
-  border-color: rgba(74, 222, 128, 0.15);
-}
-
-html.dark .username-card label {
-  color: #e2e8f0;
-}
-
-html.dark .username-input input {
-  background: rgba(15, 23, 42, 0.7);
-  border-color: rgba(148, 163, 184, 0.3);
-  color: #e2e8f0;
-}
-
-html.dark .username-input input:focus {
-  border-color: rgba(52, 211, 153, 0.6);
-  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
-}
-
-html.dark .username-hint {
-  color: #94a3b8;
-}
-
-html.dark .cta.secondary {
-  color: #34d399;
-  background: rgba(6, 78, 59, 0.6);
-  border-color: rgba(74, 222, 128, 0.25);
-}
-
-html.dark .ghost {
-  color: #e2e8f0;
-  background: rgba(6, 78, 59, 0.5);
-  border-color: rgba(148, 163, 184, 0.25);
-}
-
-html.dark .ghost:hover {
-  background: rgba(16, 185, 129, 0.25);
-}
-
-html.dark .feedback {
-  color: #34d399;
-}
-
-html.dark .modal-panel {
+html.dark .loading-panel {
   background: #1e293b;
 }
 
-html.dark .modal-panel h3,
-html.dark .modal-label {
+html.dark .loading-message {
   color: #e2e8f0;
 }
 
-html.dark .modal-copy {
-  color: #94a3b8;
+html.dark .loading-spinner {
+  border-color: rgba(52, 211, 153, 0.2);
+  border-top-color: #34d399;
 }
 
 html.dark .modal-panel input {
