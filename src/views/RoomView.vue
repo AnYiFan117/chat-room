@@ -358,7 +358,7 @@ watch(
 
         <textarea
           v-model="messageInput"
-          rows="3"
+          rows="2"
           placeholder="输入消息，按 Enter 发送，Shift + Enter 换行"
           @keydown="handleComposerKeydown"
         ></textarea>
@@ -385,10 +385,10 @@ watch(
 <style scoped>
 .room-shell {
   display: grid;
-  grid-template-columns: 180px minmax(800px, 1fr);
+  grid-template-columns: 150px minmax(0, 1fr);
   grid-template-rows: auto;
-  gap: 2rem;
-  padding: clamp(1.5rem, 4vw, 3rem);
+  gap: 1rem;
+  padding: clamp(1rem, 3vw, 2rem);
   box-sizing: border-box;
   align-items: stretch;
   min-width: 0;
@@ -397,7 +397,7 @@ watch(
 .room-left {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
   min-height: 0;
   height: 100%;
 }
@@ -405,10 +405,10 @@ watch(
 .room-header {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  padding: 1.5rem 2rem;
+  gap: 0.875rem;
+  padding: 1rem 1.25rem;
   background: rgba(236, 253, 245, 0.92);
-  border-radius: 18px;
+  border-radius: 16px;
   border: 1px solid rgba(16, 185, 129, 0.18);
   flex-shrink: 0;
 }
@@ -478,10 +478,10 @@ h1 {
   max-height: 50vh;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  padding: 1.5rem;
+  gap: 1rem;
+  padding: 1rem;
   background: #ffffff;
-  border-radius: 18px;
+  border-radius: 16px;
   border: 1px solid rgba(226, 232, 240, 0.8);
   box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
 }
@@ -502,9 +502,9 @@ h1 {
 .member-card {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  padding: 1rem;
-  border-radius: 14px;
+  gap: 0.15rem;
+  padding: 0.75rem;
+  border-radius: 12px;
   background: rgba(236, 253, 245, 0.9);
   border: 1px solid rgba(16, 185, 129, 0.2);
 }
@@ -515,12 +515,13 @@ h1 {
 }
 
 .member-name {
+  font-size: 0.9rem;
   font-weight: 600;
   color: #0f172a;
 }
 
 .member-status {
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   color: #047857;
 }
 
@@ -534,10 +535,10 @@ h1 {
 .chat-panel {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  padding: 1.5rem;
+  gap: 0.75rem;
+  padding: 1rem;
   background: #ffffff;
-  border-radius: 24px;
+  border-radius: 20px;
   border: 1px solid rgba(226, 232, 240, 0.86);
   box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
   box-sizing: border-box;
@@ -552,17 +553,17 @@ h1 {
   padding-right: 0.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 0.75rem;
   scroll-behavior: smooth;
 }
 
 .message-list {
   list-style: none;
   margin: 0;
-  padding: 20px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.35rem;
 }
 
 .message {
@@ -579,28 +580,28 @@ h1 {
 }
 
 .message-bubble {
-  max-width: min(520px, 90%);
-  padding: 0.85rem 1rem;
-  border-radius: 16px;
+  max-width: min(640px, 88%);
+  padding: 0.5rem 0.75rem;
+  border-radius: 14px;
   background: rgba(59, 130, 246, 0.12);
   color: #0f172a;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  box-shadow: 0 12px 28px rgba(59, 130, 246, 0.12);
+  gap: 0.2rem;
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.1);
 }
 
 .message.self .message-bubble {
   background: rgba(16, 185, 129, 0.18);
-  box-shadow: 0 12px 28px rgba(16, 185, 129, 0.15);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.12);
 }
 
 .message-bubble header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 1rem;
-  font-size: 0.85rem;
+  gap: 0.5rem;
+  font-size: 0.75rem;
   color: #0369a1;
 }
 
@@ -618,21 +619,22 @@ h1 {
 
 .message-bubble .body {
   margin: 0;
+  font-size: 0.9375rem;
   white-space: pre-wrap;
-  line-height: 1.6;
+  line-height: 1.45;
   color: #0f172a;
 }
 
 .message-system {
   align-self: center;
-  padding: 0.6rem 1rem;
+  padding: 0.35rem 0.75rem;
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.08);
   color: #1e293b;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .message-system time {
@@ -677,17 +679,17 @@ h1 {
 .composer {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .composer textarea {
   width: 100%;
-  padding: 0.9rem 1rem;
-  border-radius: 16px;
+  padding: 0.65rem 0.875rem;
+  border-radius: 14px;
   border: 1px solid rgba(148, 163, 184, 0.45);
   resize: none;
-  font-size: 1rem;
-  line-height: 1.6;
+  font-size: 0.9375rem;
+  line-height: 1.45;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
@@ -703,11 +705,11 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .composer-hint {
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   color: #64748b;
 }
 
@@ -715,7 +717,7 @@ h1 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.9rem 2rem;
+  padding: 0.7rem 1.6rem;
   border-radius: 999px;
   font-weight: 600;
   border: none;
@@ -739,7 +741,7 @@ h1 {
 @media (max-width: 1090px) {
   .room-shell {
     grid-template-columns: minmax(0, 1fr);
-    gap: 1.5rem;
+    gap: 1rem;
   }
 
   .room-left {
@@ -762,18 +764,18 @@ h1 {
 .composer-preview {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
+  gap: 0.625rem;
+  padding: 0.5rem;
   background: rgba(236, 253, 245, 0.6);
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
 .composer-preview img {
-  width: 64px;
-  height: 64px;
+  width: 48px;
+  height: 48px;
   object-fit: cover;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
 .preview-meta {
@@ -819,8 +821,9 @@ h1 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.7rem 1.2rem;
+  padding: 0.55rem 1rem;
   border-radius: 999px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #047857;
   background: rgba(236, 253, 245, 0.9);
@@ -842,9 +845,9 @@ h1 {
 }
 
 .message-image {
-  max-width: min(240px, 60vw);
-  max-height: 240px;
-  border-radius: 12px;
+  max-width: min(200px, 55vw);
+  max-height: 200px;
+  border-radius: 10px;
   cursor: pointer;
   object-fit: cover;
   display: block;
@@ -861,7 +864,7 @@ h1 {
 
 @media (max-width: 1090px) {
   .message-image {
-    max-width: min(200px, 70vw);
+    max-width: min(160px, 65vw);
   }
 }
 </style>

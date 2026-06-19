@@ -16,6 +16,8 @@ const joinModalOpen = ref(false)
 const joinRoomId = ref('')
 const joinError = ref('')
 
+const APP_VERSION = '0.1.0'
+
 let feedbackTimer: ReturnType<typeof setTimeout> | null = null
 
 const ensureUsernameLoaded = () => {
@@ -95,7 +97,7 @@ onMounted(() => {
 <template>
   <section class="hero">
     <div class="hero-content">
-      <p class="hero-tagline">实时连接 · 畅聊无阻</p>
+      <p class="hero-tagline">实时连接 · 畅聊无阻 <span class="version-badge">v{{ APP_VERSION }}</span></p>
       <h1>欢迎来到 Blow 在线聊天室</h1>
       <p class="hero-copy">
         在这里与朋友或团队快速开启对话，分享灵感与想法。无需复杂配置，直接创建或加入房间，开始实时聊天体验。
@@ -191,6 +193,23 @@ onMounted(() => {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: #047857;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #065f46;
+  background: rgba(16, 185, 129, 0.22);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  vertical-align: middle;
 }
 
 h1 {
