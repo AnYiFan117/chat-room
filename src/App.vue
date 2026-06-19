@@ -21,10 +21,10 @@ const handleToggleTheme = () => {
 <template>
   <div class="app-shell">
     <header class="app-header">
-      <RouterLink class="brand" to="/">超级大爆聊天室</RouterLink>
+      <RouterLink class="brand" to="/">Blow</RouterLink>
       <nav class="nav-links">
         <RouterLink class="nav-link" to="/">首页</RouterLink>
-        <RouterLink class="nav-link" to="/contact">联系我</RouterLink>
+        <RouterLink class="nav-link" to="/contact">联系</RouterLink>
         <button
           type="button"
           class="theme-toggle"
@@ -104,6 +104,32 @@ const handleToggleTheme = () => {
   color: #ffffff;
   border-color: rgba(16, 185, 129, 0.8);
   box-shadow: 0 8px 18px rgba(14, 116, 144, 0.3);
+}
+
+@media (max-width: 520px) {
+  .app-header {
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+
+  .brand {
+    font-size: 1.1rem;
+  }
+
+  .nav-links {
+    gap: 0.35rem;
+  }
+
+  .nav-link {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .theme-toggle {
+    width: 2.2rem;
+    height: 2.2rem;
+    font-size: 1rem;
+  }
 }
 
 .theme-toggle {

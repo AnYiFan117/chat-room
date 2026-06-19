@@ -350,6 +350,18 @@ watch(
           @change="handleFileChange"
         />
 
+        <div class="composer-toolbar">
+          <button
+            type="button"
+            class="image-button"
+            :disabled="isCompressing"
+            @click="handlePickImage"
+          >
+            {{ isCompressing ? '…' : '📎' }}
+          </button>
+          <button type="submit" class="cta primary send-button">发送</button>
+        </div>
+
         <div v-if="pendingImage" class="composer-preview">
           <img :src="pendingImage.dataUrl" alt="图片预览" />
           <div class="preview-meta">
@@ -364,24 +376,8 @@ watch(
         <textarea
           v-model="messageInput"
           rows="2"
-          placeholder="输入消息，按 Enter 发送，Shift + Enter 换行"
           @keydown="handleComposerKeydown"
         ></textarea>
-
-        <div class="composer-actions">
-          <div class="composer-left">
-            <button
-              type="button"
-              class="image-button"
-              :disabled="isCompressing"
-              @click="handlePickImage"
-            >
-              {{ isCompressing ? '压缩中...' : '📎 图片' }}
-            </button>
-          </div>
-          <span class="composer-hint">Enter 发送 · Shift + Enter 换行</span>
-          <button type="submit" class="cta primary">发送消息</button>
-        </div>
       </form>
     </div>
   </div>
@@ -745,6 +741,14 @@ h1 {
   gap: 0.5rem;
 }
 
+.composer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  order: -1;
+}
+
 .composer textarea {
   width: 100%;
   padding: 0.65rem 0.875rem;
@@ -762,18 +766,6 @@ h1 {
   outline: none;
   border-color: rgba(59, 130, 246, 0.6);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
-}
-
-.composer-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.composer-hint {
-  font-size: 0.75rem;
-  color: #64748b;
 }
 
 .cta {
@@ -799,6 +791,17 @@ h1 {
 .cta.primary:hover {
   transform: translateY(-2px);
   box-shadow: 0 14px 32px rgba(16, 185, 129, 0.4);
+}
+
+.send-button {
+  padding: 0.55rem 1.25rem;
+  font-size: 0.9rem;
+}
+
+@media (min-width: 641px) {
+  .composer-toolbar {
+    order: 0;
+  }
 }
 
 @media (max-width: 1090px) {
@@ -874,20 +877,15 @@ h1 {
   font-weight: 600;
 }
 
-.composer-left {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 .image-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.55rem 1rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
   border-radius: 999px;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 1.1rem;
   color: #047857;
   background: rgba(236, 253, 245, 0.9);
   border: 1px solid rgba(16, 185, 129, 0.3);
