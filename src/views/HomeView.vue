@@ -16,7 +16,7 @@ const joinModalOpen = ref(false)
 const joinRoomId = ref('')
 const joinError = ref('')
 
-const APP_VERSION = '0.2.0'
+const APP_VERSION = '0.2.1'
 
 let feedbackTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -133,11 +133,11 @@ onMounted(() => {
     <div class="hero-visual">
       <div class="visual-card">
         <h2>即时协作</h2>
-        <p>支持多人在线聊天，稍后将接入消息同步与在线用户列表。</p>
+        <p>支持多人在线聊天、实时消息同步与在线成员列表。</p>
         <ul>
           <li>快速生成房间号</li>
           <li>浏览器记住昵称</li>
-          <li>体验清爽界面</li>
+          <li>支持文字与图片消息</li>
         </ul>
       </div>
     </div>
@@ -172,10 +172,13 @@ onMounted(() => {
 <style scoped>
 .hero {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   align-items: center;
-  gap: clamp(2rem, 6vw, 4rem);
-  padding: clamp(2.5rem, 6vw, 4.5rem) clamp(1.5rem, 8vw, 7rem);
+  gap: clamp(1.5rem, 4vw, 3rem);
+  min-height: calc(100vh - 80px);
+  max-height: calc(100vh - 80px);
+  overflow: hidden;
+  padding: clamp(1rem, 4vw, 2.5rem) clamp(1.5rem, 6vw, 5rem);
   background: linear-gradient(135deg, rgba(236, 253, 245, 0.95), rgba(209, 250, 229, 0.75));
   color: #0f172a;
 }
@@ -183,14 +186,15 @@ onMounted(() => {
 .hero-content {
   display: flex;
   flex-direction: column;
-  gap: 1.75rem;
+  gap: 1rem;
   color: #0f172a;
 }
 
 .hero-tagline {
-  font-size: 0.9rem;
+  margin: 0;
+  font-size: 0.8rem;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #047857;
   display: inline-flex;
@@ -201,9 +205,9 @@ onMounted(() => {
 .version-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.15rem 0.45rem;
+  padding: 0.12rem 0.4rem;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   color: #065f46;
@@ -214,14 +218,14 @@ onMounted(() => {
 
 h1 {
   margin: 0;
-  font-size: clamp(2.5rem, 5vw, 3.6rem);
+  font-size: clamp(2rem, 4vw, 3rem);
   line-height: 1.1;
 }
 
 .hero-copy {
   margin: 0;
-  font-size: 1rem;
-  line-height: 1.7;
+  font-size: 0.95rem;
+  line-height: 1.55;
   color: #374151;
   max-width: 46ch;
 }
@@ -229,32 +233,32 @@ h1 {
 .username-card {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 1.5rem;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
   background: rgba(255, 255, 255, 0.9);
-  border-radius: 18px;
+  border-radius: 16px;
   border: 1px solid rgba(59, 130, 246, 0.08);
-  box-shadow: 0 18px 40px rgba(15, 118, 110, 0.12);
+  box-shadow: 0 14px 32px rgba(15, 118, 110, 0.1);
 }
 
 .username-card label {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: #0f172a;
 }
 
 .username-input {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.5rem;
   align-items: center;
 }
 
 .username-input input {
   flex: 1;
-  padding: 0.75rem 1rem;
+  padding: 0.6rem 0.875rem;
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.4);
-  font-size: 1rem;
+  font-size: 0.95rem;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
@@ -268,21 +272,21 @@ h1 {
 
 .username-hint {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   color: #6b7280;
 }
 
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .cta {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.95rem 2.2rem;
+  padding: 0.8rem 1.8rem;
   border-radius: 999px;
   font-weight: 600;
   border: none;
@@ -343,34 +347,36 @@ h1 {
 }
 
 .visual-card {
-  padding: clamp(2rem, 4vw, 3rem);
+  padding: clamp(1.25rem, 3vw, 2rem);
   background: rgba(15, 118, 110, 0.92);
   color: #ecfdf5;
-  border-radius: 26px;
-  box-shadow: 0 22px 45px rgba(15, 118, 110, 0.35);
-  max-width: 360px;
+  border-radius: 22px;
+  box-shadow: 0 18px 38px rgba(15, 118, 110, 0.3);
+  max-width: 320px;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .visual-card h2 {
   margin: 0;
-  font-size: 1.75rem;
+  font-size: 1.5rem;
 }
 
 .visual-card p {
   margin: 0;
-  line-height: 1.6;
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
 
 .visual-card ul {
   margin: 0;
-  padding-left: 1.25rem;
+  padding-left: 1.1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  color: rgba(236, 253, 245, 0.8);
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: rgba(236, 253, 245, 0.85);
 }
 
 .fade-enter-active,

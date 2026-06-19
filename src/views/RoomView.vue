@@ -249,6 +249,11 @@ watch(
 </script>
 
 <template>
+  <div class="room-decoration" aria-hidden="true">
+    <span class="orb orb-1"></span>
+    <span class="orb orb-2"></span>
+    <span class="orb orb-3"></span>
+  </div>
   <div class="room-shell">
     <div class="room-left">
       <header class="room-header">
@@ -383,11 +388,68 @@ watch(
 </template>
 
 <style scoped>
+.room-decoration {
+  position: fixed;
+  inset: 80px 0 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.35;
+  animation: float 18s ease-in-out infinite;
+}
+
+.orb-1 {
+  width: 300px;
+  height: 300px;
+  top: 10%;
+  left: 5%;
+  background: rgba(52, 211, 153, 0.45);
+  animation-delay: 0s;
+}
+
+.orb-2 {
+  width: 260px;
+  height: 260px;
+  bottom: 15%;
+  right: 5%;
+  background: rgba(59, 130, 246, 0.4);
+  animation-delay: -6s;
+}
+
+.orb-3 {
+  width: 180px;
+  height: 180px;
+  top: 45%;
+  left: 50%;
+  background: rgba(16, 185, 129, 0.35);
+  animation-delay: -12s;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-24px) scale(1.05);
+  }
+}
+
 .room-shell {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: 150px minmax(0, 1fr);
   grid-template-rows: auto;
   gap: 1rem;
+  max-width: 1100px;
+  margin: 0 auto;
   padding: clamp(1rem, 3vw, 2rem);
   box-sizing: border-box;
   align-items: stretch;
@@ -1009,5 +1071,17 @@ html.dark .preview-size {
 
 html.dark .image-error {
   color: #fca5a5;
+}
+
+html.dark .orb-1 {
+  background: rgba(16, 185, 129, 0.35);
+}
+
+html.dark .orb-2 {
+  background: rgba(59, 130, 246, 0.35);
+}
+
+html.dark .orb-3 {
+  background: rgba(52, 211, 153, 0.28);
 }
 </style>
