@@ -35,6 +35,10 @@ const participants = computed(() => roomStore.getParticipants(normalizedRoomId.v
 
 const hasMessages = computed(() => messages.value.length > 0)
 
+const imagePreviewList = computed(() =>
+  messages.value.filter((message) => message.type === 'image').map((message) => message.content),
+)
+
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
   hour: '2-digit',
   minute: '2-digit',
@@ -179,12 +183,6 @@ const handleFileChange = async (event: Event) => {
 const clearPendingImage = () => {
   pendingImage.value = null
   imageError.value = null
-}
-
-const openImage = (src: string) => {
-  if (typeof window === 'undefined') return
-  if (!src.startsWith('data:image/')) return
-  window.open(src, '_blank')
 }
 
 const toggleMembers = () => {
@@ -335,15 +333,16 @@ watch(
                   <span class="author">{{ message.username }}</span>
                   <time>{{ formatTimestamp(message.timestamp) }}</time>
                 </header>
-                <img
+                <el-image
                   v-if="message.type === 'image'"
                   :src="message.content"
+                  :preview-src-list="imagePreviewList"
+                  :initial-index="imagePreviewList.indexOf(message.content)"
+                  fit="cover"
                   class="message-image"
                   alt="聊天图片"
-                  title="点击查看大图"
-                  loading="lazy"
-                  tabindex="0"
-                  @click="openImage(message.content)"
+                  title="点击放大预览"
+                  :preview-teleported="true"
                 />
                 <p v-else class="body">{{ message.content }}</p>
               </div>
@@ -1046,15 +1045,22 @@ html.dark .mobile-members-header h2 {
   max-height: 200px;
   border-radius: 10px;
   cursor: pointer;
+  display: block;
+}
+
+.message-image :deep(.el-image__inner) {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 10px;
   object-fit: cover;
   display: block;
 }
 
-.message-image:hover {
+.message-image:hover :deep(.el-image__inner) {
   opacity: 0.92;
 }
 
-.message-image:focus {
+.message-image:focus :deep(.el-image__inner) {
   outline: 2px solid rgba(59, 130, 246, 0.6);
   outline-offset: 2px;
 }
@@ -1062,6 +1068,10 @@ html.dark .mobile-members-header h2 {
 @media (max-width: 1090px) {
   .message-image {
     max-width: min(160px, 65vw);
+  }
+
+  .message-image :deep(.el-image__inner) {
+    max-height: 160px;
   }
 }
 
