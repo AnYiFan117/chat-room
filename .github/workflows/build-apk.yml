@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -66,4 +69,3 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: out/chatroom-${{ github.ref_name }}.apk
-          generate_release_notes: true
