@@ -36,11 +36,15 @@ jobs:
         run: npm ci
 
       - name: Inject runtime env
+        env:
+          VITE_SIGNALING_ENDPOINT: ${{ secrets.VITE_SIGNALING_ENDPOINT }}
+          VITE_ICE_SERVERS: ${{ secrets.VITE_ICE_SERVERS }}
         run: |
-          cat > .env.production <<'EOF'
-          VITE_SIGNALING_ENDPOINT=${{ secrets.VITE_SIGNALING_ENDPOINT }}
-          VITE_ICE_SERVERS=${{ secrets.VITE_ICE_SERVERS }}
-          EOF
+          # 压成单行，去掉 CR/LF 防止 secret 里意外的换行破坏 .env 格式
+          SIGNAL_ONE_LINE=$(printf '%s' "$VITE_SIGNALING_ENDPOINT" | tr -d '\r\n')
+          ICE_ONE_LINE=$(printf '%s' "$VITE_ICE_SERVERS" | tr -d '\r\n')
+          printf 'VITE_SIGNALING_ENDPOINT=%s\n' "$SIGNAL_ONE_LINE" >  .env.production
+          printf 'VITE_ICE_SERVERS=%s\n'      "$ICE_ONE_LINE"    >> .env.production
 
       - name: Build web
         run: npm run build-only
