@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { Capacitor, type PluginListenerHandle } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
 
@@ -8,7 +8,10 @@ import { getInitialTheme, initTheme, setTheme, type Theme } from '@/composables/
 
 const currentTheme = ref<Theme>('light')
 const router = useRouter()
+const route = useRoute()
 let backButtonHandle: PluginListenerHandle | null = null
+
+const isRoomPage = computed(() => route.name === 'room')
 
 onMounted(async () => {
   initTheme()
@@ -59,6 +62,7 @@ const handleToggleTheme = () => {
     </main>
 
     <button
+      v-if="!isRoomPage"
       type="button"
       class="theme-toggle theme-toggle--floating"
       :aria-label="currentTheme === 'dark' ? '切换到白天模式' : '切换到黑夜模式'"

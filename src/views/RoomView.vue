@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 
 import { useRoomStore } from '@/stores/roomStore'
 import { compressImage, DEFAULT_MAX_IMAGE_SIZE, ImageTooLargeError } from '@/composables/useImageCompressor'
+import { getInitialTheme, setTheme, type Theme } from '@/composables/useTheme'
 
 const props = defineProps<{ roomId: string }>()
 
@@ -26,6 +27,13 @@ const pendingImage = ref<{ dataUrl: string; fileName: string; size: number } | n
 const imageError = ref<string | null>(null)
 const isCompressing = ref(false)
 const membersOpen = ref(false)
+const currentTheme = ref<Theme>('light')
+
+const handleToggleTheme = () => {
+  const next = currentTheme.value === 'dark' ? 'light' : 'dark'
+  setTheme(next)
+  currentTheme.value = next
+}
 
 const normalizedRoomId = computed(() => props.roomId.toUpperCase())
 
@@ -207,6 +215,7 @@ const scrollChatToBottom = (behavior: ScrollBehavior = 'auto') => {
 onMounted(() => {
   ensureUsernameLoaded()
   ensureSelfIdentity()
+  currentTheme.value = getInitialTheme()
   joinRoomFlow(normalizedRoomId.value)
 })
 
@@ -294,6 +303,34 @@ watch(
     </div>
 
     <div class="chat-panel">
+      <header class="mobile-room-header">
+        <div class="mobile-room-meta">
+          <span class="mobile-room-id">{{ normalizedRoomId }}</span>
+          <span v-if="!roomMissing" class="mobile-room-status">
+            <span class="status-dot" aria-hidden="true"></span>
+            {{ participants.length }} 人在线
+          </span>
+        </div>
+        <div class="mobile-room-actions">
+          <button
+            type="button"
+            class="icon-button"
+            aria-label="在线成员"
+            @click="toggleMembers"
+          >
+            👥
+          </button>
+          <button
+            type="button"
+            class="icon-button"
+            :aria-label="currentTheme === 'dark' ? '切换到白天模式' : '切换到黑夜模式'"
+            @click="handleToggleTheme"
+          >
+            {{ currentTheme === 'dark' ? '☀️' : '🌙' }}
+          </button>
+        </div>
+      </header>
+
       <header class="chat-header">
         <div class="chat-header-meta">
           <span class="chat-header-room">{{ normalizedRoomId }}</span>
@@ -385,18 +422,6 @@ watch(
           @change="handleFileChange"
         />
 
-        <div class="composer-toolbar">
-          <button
-            type="button"
-            class="image-button"
-            :disabled="isCompressing"
-            @click="handlePickImage"
-          >
-            {{ isCompressing ? '…' : '📎' }}
-          </button>
-          <button type="submit" class="cta primary send-button">发送</button>
-        </div>
-
         <div v-if="pendingImage" class="composer-preview">
           <img :src="pendingImage.dataUrl" alt="图片预览" />
           <div class="preview-meta">
@@ -408,11 +433,24 @@ watch(
 
         <p v-if="imageError" class="image-error" aria-live="polite">{{ imageError }}</p>
 
-        <textarea
-          v-model="messageInput"
-          rows="2"
-          @keydown="handleComposerKeydown"
-        ></textarea>
+        <div class="composer-row">
+          <button
+            type="button"
+            class="image-button"
+            :disabled="isCompressing"
+            aria-label="发送图片"
+            @click="handlePickImage"
+          >
+            {{ isCompressing ? '…' : '📎' }}
+          </button>
+          <textarea
+            v-model="messageInput"
+            rows="1"
+            placeholder="输入消息…"
+            @keydown="handleComposerKeydown"
+          ></textarea>
+          <button type="submit" class="cta primary send-button">发送</button>
+        </div>
       </form>
     </div>
   </div>
@@ -730,7 +768,7 @@ h1 {
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.25rem;
 }
 
 .message {
@@ -748,13 +786,13 @@ h1 {
 
 .message-bubble {
   max-width: min(640px, 88%);
-  padding: 0.5rem 0.75rem;
+  padding: 0.3rem 0.7rem;
   border-radius: 14px;
   background: rgba(59, 130, 246, 0.12);
   color: #0f172a;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.1rem;
   box-shadow: 0 8px 20px rgba(59, 130, 246, 0.1);
 }
 
@@ -768,7 +806,8 @@ h1 {
   justify-content: space-between;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
+  line-height: 1.1;
   color: #0369a1;
 }
 
@@ -788,7 +827,7 @@ h1 {
   margin: 0;
   font-size: 0.9375rem;
   white-space: pre-wrap;
-  line-height: 1.45;
+  line-height: 1.35;
   color: #0f172a;
 }
 
@@ -849,22 +888,23 @@ h1 {
   gap: 0.5rem;
 }
 
-.composer-toolbar {
-  display: flex;
+.composer-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  order: -1;
+  gap: 0.5rem;
 }
 
 .composer textarea {
   width: 100%;
-  padding: 0.65rem 0.875rem;
-  border-radius: 14px;
+  padding: 0.55rem 0.875rem;
+  border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.45);
   resize: none;
   font-size: 0.9375rem;
-  line-height: 1.45;
+  line-height: 1.4;
+  height: 2.4rem;
+  overflow: hidden;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
@@ -902,14 +942,9 @@ h1 {
 }
 
 .send-button {
-  padding: 0.55rem 1.25rem;
+  height: 2.4rem;
+  padding: 0 1rem;
   font-size: 0.9rem;
-}
-
-@media (min-width: 641px) {
-  .composer-toolbar {
-    order: 0;
-  }
 }
 
 @media (max-width: 1090px) {
@@ -1016,8 +1051,8 @@ html.dark .mobile-members-header h2 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.4rem;
+  height: 2.4rem;
   padding: 0;
   border-radius: 999px;
   font-size: 1.1rem;
@@ -1228,5 +1263,171 @@ html.dark .orb-2 {
 
 html.dark .orb-3 {
   background: rgba(52, 211, 153, 0.38);
+}
+
+.mobile-room-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: calc(env(safe-area-inset-top, 0px) + 0.5rem) 0.875rem 0.5rem;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.2);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.mobile-room-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.mobile-room-id {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #022c22;
+  letter-spacing: 0.04em;
+}
+
+.mobile-room-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: #059669;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+}
+
+.mobile-room-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 1rem;
+  background: rgba(236, 253, 245, 0.9);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #047857;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.icon-button:hover {
+  background: rgba(190, 242, 100, 0.3);
+  border-color: rgba(16, 185, 129, 0.45);
+}
+
+html.dark .mobile-room-header {
+  background: rgba(15, 23, 42, 0.92);
+  border-bottom-color: rgba(74, 222, 128, 0.18);
+}
+
+html.dark .mobile-room-id {
+  color: #f0fdf4;
+}
+
+html.dark .mobile-room-status {
+  color: #34d399;
+}
+
+html.dark .status-dot {
+  background: #34d399;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18);
+}
+
+html.dark .icon-button {
+  background: rgba(6, 78, 59, 0.5);
+  border-color: rgba(74, 222, 128, 0.25);
+  color: #34d399;
+}
+
+html.dark .icon-button:hover {
+  background: rgba(16, 185, 129, 0.25);
+}
+
+@media (max-width: 520px) {
+  .room-decoration {
+    display: none;
+  }
+
+  .room-shell {
+    width: 100%;
+    padding: 0;
+    gap: 0;
+  }
+
+  .chat-panel {
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+    gap: 0;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .chat-header {
+    display: none;
+  }
+
+  .mobile-room-header {
+    display: flex;
+  }
+
+  .chat-window {
+    padding: 0.5rem 0.5rem 0;
+  }
+
+  .message-list {
+    padding: 0.5rem 0.25rem;
+  }
+
+  .composer {
+    padding: 0.5rem 0.625rem calc(env(safe-area-inset-bottom, 0px) + 0.625rem);
+    background: rgba(255, 255, 255, 0.96);
+    border-top: 1px solid rgba(16, 185, 129, 0.15);
+  }
+
+  .send-button {
+    padding: 0 0.85rem;
+    font-size: 0.85rem;
+  }
+}
+
+html.dark .composer {
+  background: transparent;
+}
+
+@media (max-width: 520px) {
+  html.dark .composer {
+    background: rgba(15, 23, 42, 0.94);
+    border-top-color: rgba(74, 222, 128, 0.15);
+  }
 }
 </style>
