@@ -50,6 +50,25 @@
   }
 }
 
+/* 手动切换黑夜模式 */
+:root.dark {
+  --color-background: var(--vt-c-black);
+  --color-background-soft: var(--vt-c-black-soft);
+  --color-background-mute: var(--vt-c-black-mute);
+
+  --color-border: var(--vt-c-divider-dark-2);
+  --color-border-hover: var(--vt-c-divider-dark-1);
+
+  --color-heading: var(--vt-c-text-dark-1);
+  --color-text: var(--vt-c-text-dark-2);
+}
+
+/* 确保 html.dark 下 body 背景也跟随变量 */
+html.dark body {
+  color: var(--color-text);
+  background: var(--color-background);
+}
+
 *,
 *::before,
 *::after {

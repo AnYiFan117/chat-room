@@ -54,6 +54,7 @@ const toBase64 = (data: Uint8Array): string => {
   }
 
   const bufferCtor =
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     typeof globalThis !== 'undefined' ? (globalThis as { Buffer?: any }).Buffer : undefined
   if (bufferCtor) {
     return bufferCtor.from(data).toString('base64')
@@ -74,6 +75,7 @@ const fromBase64 = (value: string): Uint8Array => {
   }
 
   const bufferCtor =
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     typeof globalThis !== 'undefined' ? (globalThis as { Buffer?: any }).Buffer : undefined
   if (bufferCtor) {
     const buffer = bufferCtor.from(value, 'base64')
@@ -450,16 +452,30 @@ export const useRoomStore = defineStore('room', {
       const trimmedDataUrl = payload.dataUrl.trim()
       if (!trimmedDataUrl) return
 
-      session.yMessages.push([
-        buildEncryptedMessage(normalizedId, {
-          type: 'image',
-          userId: payload.userId,
-          username: payload.username.trim().length > 0 ? payload.username.trim() : DEFAULT_USERNAME,
-          content: trimmedDataUrl,
-          fileName: payload.fileName,
-          size: payload.size,
-        }),
-      ])
+      // 图片本身已是 base64 Data URL，若再走 XOR+base64 加密会让体积膨胀约 33%，
+      // 极易超过 WebRTC SCTP data channel 的单条消息上限（Chromium 约 256 KB）。
+      // 因此图片消息直接以原 Data URL 同步，不再额外加密。
+      const message: RoomMessage = {
+        id: generateMessageId(),
+        type: 'image',
+        userId: payload.userId,
+        username: payload.username.trim().length > 0 ? payload.username.trim() : DEFAULT_USERNAME,
+        content: trimmedDataUrl,
+        timestamp: Date.now(),
+        encrypted: false,
+        fileName: payload.fileName,
+        size: payload.size,
+      }
+
+      // WebRTC SCTP data channel 的单条消息上限在 Chromium 中约为 256 KB；
+      // 留一点余量给 y-webrtc 的 sync 协议头部。
+      const WEBRTC_SAFE_MESSAGE_LIMIT = 240 * 1024
+      if (message.content.length > WEBRTC_SAFE_MESSAGE_LIMIT) {
+        console.warn('图片超过 WebRTC 单条消息安全上限，丢弃发送', message.content.length)
+        return
+      }
+
+      session.yMessages.push([message])
     },
     // 切换本地昵称并广播
     updateLocalUsername(roomId: string, user: { id: string; username: string }) {
@@ -533,7 +549,9 @@ export const useRoomStore = defineStore('room', {
           peerOpts: {
             trickle: true,
             config: {
-              iceTransportPolicy: 'relay',
+              // 默认允许直连 P2P，无法直连时再走 TURN 中继，
+              // 避免 relay-only 在部分网络或本地测试时无法建立连接。
+              iceTransportPolicy: 'all',
               iceServers,
             },
           },
@@ -542,8 +560,6 @@ export const useRoomStore = defineStore('room', {
 
       // 共享的消息数组
       const yMessages = markRaw(doc.getArray<RoomMessage>('messages'))
-      // 存储引用，用于回调中访问
-      const store = this
 
       const session: RoomSession = {
         roomId,
@@ -559,6 +575,21 @@ export const useRoomStore = defineStore('room', {
         },
       }
 
+      // 调试日志：观察连接与同步状态
+      const onStatus = (event: { connected: boolean }) => {
+        console.log(`[webrtc ${roomId}] connected:`, event.connected)
+      }
+      const onSynced = (event: { synced: boolean }) => {
+        console.log(`[webrtc ${roomId}] synced:`, event.synced)
+      }
+      const onPeers = (event: { added: string[]; removed: string[] }) => {
+        console.log(`[webrtc ${roomId}] peers added:`, event.added, 'removed:', event.removed)
+      }
+
+      provider.on('status', onStatus)
+      provider.on('synced', onSynced)
+      provider.on('peers', onPeers)
+
       // 将远端消息同步到 store，并保证按时间排序
       const updateMessages = () => {
         const incoming = yMessages
@@ -567,7 +598,7 @@ export const useRoomStore = defineStore('room', {
           .filter((item): item is RoomMessage => item !== null)
           .sort((a, b) => a.timestamp - b.timestamp)
 
-        const currentSession = store.sessions[roomId]
+        const currentSession = this.sessions[roomId]
         if (currentSession) {
           currentSession.messages = incoming
         } else {
@@ -592,7 +623,7 @@ export const useRoomStore = defineStore('room', {
         })
 
         aggregated.sort((a, b) => a.joinedAt - b.joinedAt)
-        const currentSession = store.sessions[roomId]
+        const currentSession = this.sessions[roomId]
         if (currentSession) {
           currentSession.participants = aggregated
         } else {
@@ -609,6 +640,9 @@ export const useRoomStore = defineStore('room', {
         // 解绑监听，防止内存泄露
         yMessages.unobserve(updateMessages)
         awareness.off('change', updateParticipants)
+        provider.off('status', onStatus)
+        provider.off('synced', onSynced)
+        provider.off('peers', onPeers)
         provider.destroy()
         doc.destroy()
       }

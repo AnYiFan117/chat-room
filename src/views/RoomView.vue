@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { useRoomStore } from '@/stores/roomStore'
-import { compressImage, ImageTooLargeError } from '@/composables/useImageCompressor'
+import { compressImage, DEFAULT_MAX_IMAGE_SIZE, ImageTooLargeError } from '@/composables/useImageCompressor'
 
 const props = defineProps<{ roomId: string }>()
 
@@ -25,6 +25,7 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const pendingImage = ref<{ dataUrl: string; fileName: string; size: number } | null>(null)
 const imageError = ref<string | null>(null)
 const isCompressing = ref(false)
+const membersOpen = ref(false)
 
 const normalizedRoomId = computed(() => props.roomId.toUpperCase())
 
@@ -33,6 +34,10 @@ const messages = computed(() => roomStore.getMessages(normalizedRoomId.value))
 const participants = computed(() => roomStore.getParticipants(normalizedRoomId.value))
 
 const hasMessages = computed(() => messages.value.length > 0)
+
+const imagePreviewList = computed(() =>
+  messages.value.filter((message) => message.type === 'image').map((message) => message.content),
+)
 
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
   hour: '2-digit',
@@ -161,7 +166,8 @@ const handleFileChange = async (event: Event) => {
     }
   } catch (error) {
     if (error instanceof ImageTooLargeError) {
-      imageError.value = '图片压缩后仍超过 2MB，请选择更小的图片'
+      const limitKb = Math.round(DEFAULT_MAX_IMAGE_SIZE / 1024)
+      imageError.value = `图片压缩后仍超过 ${limitKb} KB，请选择更小的图片`
     } else if (error instanceof TypeError) {
       imageError.value = error.message
     } else {
@@ -179,10 +185,8 @@ const clearPendingImage = () => {
   imageError.value = null
 }
 
-const openImage = (src: string) => {
-  if (typeof window === 'undefined') return
-  if (!src.startsWith('data:image/')) return
-  window.open(src, '_blank')
+const toggleMembers = () => {
+  membersOpen.value = !membersOpen.value
 }
 
 const handleBackToLobby = () => {
@@ -248,6 +252,11 @@ watch(
 </script>
 
 <template>
+  <div class="room-decoration" aria-hidden="true">
+    <span class="orb orb-1"></span>
+    <span class="orb orb-2"></span>
+    <span class="orb orb-3"></span>
+  </div>
   <div class="room-shell">
     <div class="room-left">
       <header class="room-header">
@@ -285,6 +294,16 @@ watch(
     </div>
 
     <div class="chat-panel">
+      <header class="chat-header">
+        <div class="chat-header-meta">
+          <span class="chat-header-room">{{ normalizedRoomId }}</span>
+          <span v-if="participants.length" class="chat-header-count">{{ participants.length }} 人在线</span>
+        </div>
+        <button type="button" class="ghost members-toggle" @click="toggleMembers">
+          成员
+        </button>
+      </header>
+
       <div ref="chatWindowRef" class="chat-window">
         <template v-if="roomMissing">
           <div class="chat-missing">
@@ -314,15 +333,16 @@ watch(
                   <span class="author">{{ message.username }}</span>
                   <time>{{ formatTimestamp(message.timestamp) }}</time>
                 </header>
-                <img
+                <el-image
                   v-if="message.type === 'image'"
                   :src="message.content"
+                  :preview-src-list="imagePreviewList"
+                  :initial-index="imagePreviewList.indexOf(message.content)"
+                  fit="cover"
                   class="message-image"
                   alt="聊天图片"
-                  title="点击查看大图"
-                  loading="lazy"
-                  tabindex="0"
-                  @click="openImage(message.content)"
+                  title="点击放大预览"
+                  :preview-teleported="true"
                 />
                 <p v-else class="body">{{ message.content }}</p>
               </div>
@@ -335,6 +355,27 @@ watch(
         </template>
       </div>
 
+      <aside class="mobile-members" :class="{ open: membersOpen }" aria-label="在线成员">
+        <div class="mobile-members-header">
+          <h2>在线成员</h2>
+          <button type="button" class="ghost" @click="toggleMembers">关闭</button>
+        </div>
+        <div v-if="participants.length" class="member-list">
+          <div
+            v-for="participant in participants"
+            :key="participant.userId"
+            class="member-card"
+            :class="{ self: participant.userId === selfId }"
+          >
+            <span class="member-name">{{ participant.username }}</span>
+            <span class="member-status">{{
+              participant.userId === selfId ? '你自己' : '在线'
+            }}</span>
+          </div>
+        </div>
+        <p v-else class="sidebar-hint">暂无其他成员加入，邀请好友一起畅聊。</p>
+      </aside>
+
       <form v-if="!roomMissing" class="composer" @submit.prevent="handleSendMessage">
         <input
           ref="fileInputRef"
@@ -343,6 +384,18 @@ watch(
           class="visually-hidden"
           @change="handleFileChange"
         />
+
+        <div class="composer-toolbar">
+          <button
+            type="button"
+            class="image-button"
+            :disabled="isCompressing"
+            @click="handlePickImage"
+          >
+            {{ isCompressing ? '…' : '📎' }}
+          </button>
+          <button type="submit" class="cta primary send-button">发送</button>
+        </div>
 
         <div v-if="pendingImage" class="composer-preview">
           <img :src="pendingImage.dataUrl" alt="图片预览" />
@@ -357,37 +410,79 @@ watch(
 
         <textarea
           v-model="messageInput"
-          rows="3"
-          placeholder="输入消息，按 Enter 发送，Shift + Enter 换行"
+          rows="2"
           @keydown="handleComposerKeydown"
         ></textarea>
-
-        <div class="composer-actions">
-          <div class="composer-left">
-            <button
-              type="button"
-              class="image-button"
-              :disabled="isCompressing"
-              @click="handlePickImage"
-            >
-              {{ isCompressing ? '压缩中...' : '📎 图片' }}
-            </button>
-          </div>
-          <span class="composer-hint">Enter 发送 · Shift + Enter 换行</span>
-          <button type="submit" class="cta primary">发送消息</button>
-        </div>
       </form>
     </div>
   </div>
 </template>
 
 <style scoped>
+.room-decoration {
+  position: fixed;
+  inset: 80px 0 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.55;
+  animation: float 18s ease-in-out infinite;
+}
+
+.orb-1 {
+  width: 360px;
+  height: 360px;
+  top: 8%;
+  left: 3%;
+  background: rgba(52, 211, 153, 0.55);
+  animation-delay: 0s;
+}
+
+.orb-2 {
+  width: 320px;
+  height: 320px;
+  bottom: 12%;
+  right: 3%;
+  background: rgba(59, 130, 246, 0.5);
+  animation-delay: -6s;
+}
+
+.orb-3 {
+  width: 240px;
+  height: 240px;
+  top: 42%;
+  left: 50%;
+  background: rgba(16, 185, 129, 0.45);
+  animation-delay: -12s;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-28px) scale(1.06);
+  }
+}
+
 .room-shell {
+  position: relative;
+  z-index: 1;
   display: grid;
-  grid-template-columns: 180px minmax(800px, 1fr);
+  grid-template-columns: 150px minmax(0, 1fr);
   grid-template-rows: auto;
-  gap: 2rem;
-  padding: clamp(1.5rem, 4vw, 3rem);
+  gap: 1rem;
+  width: min(1400px, 96%);
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2rem);
   box-sizing: border-box;
   align-items: stretch;
   min-width: 0;
@@ -396,7 +491,7 @@ watch(
 .room-left {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
   min-height: 0;
   height: 100%;
 }
@@ -404,10 +499,10 @@ watch(
 .room-header {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  padding: 1.5rem 2rem;
+  gap: 0.875rem;
+  padding: 1rem 1.25rem;
   background: rgba(236, 253, 245, 0.92);
-  border-radius: 18px;
+  border-radius: 16px;
   border: 1px solid rgba(16, 185, 129, 0.18);
   flex-shrink: 0;
 }
@@ -477,10 +572,10 @@ h1 {
   max-height: 50vh;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  padding: 1.5rem;
+  gap: 1rem;
+  padding: 1rem;
   background: #ffffff;
-  border-radius: 18px;
+  border-radius: 16px;
   border: 1px solid rgba(226, 232, 240, 0.8);
   box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
 }
@@ -501,9 +596,9 @@ h1 {
 .member-card {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  padding: 1rem;
-  border-radius: 14px;
+  gap: 0.15rem;
+  padding: 0.75rem;
+  border-radius: 12px;
   background: rgba(236, 253, 245, 0.9);
   border: 1px solid rgba(16, 185, 129, 0.2);
 }
@@ -514,12 +609,13 @@ h1 {
 }
 
 .member-name {
+  font-size: 0.9rem;
   font-weight: 600;
   color: #0f172a;
 }
 
 .member-status {
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   color: #047857;
 }
 
@@ -531,16 +627,89 @@ h1 {
 }
 
 .chat-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  padding: 1.5rem;
+  gap: 0.75rem;
+  padding: 1rem;
   background: #ffffff;
-  border-radius: 24px;
+  border-radius: 20px;
   border: 1px solid rgba(226, 232, 240, 0.86);
   box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
   box-sizing: border-box;
   overflow: hidden;
+}
+
+.chat-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.chat-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.chat-header-room {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #022c22;
+  letter-spacing: 0.04em;
+}
+
+.chat-header-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #059669;
+  background: rgba(16, 185, 129, 0.12);
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+}
+
+.members-toggle {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+.mobile-members {
+  display: none;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 240px;
+  z-index: 10;
+  background: #ffffff;
+  border-left: 1px solid rgba(226, 232, 240, 0.86);
+  box-shadow: -12px 0 36px rgba(15, 23, 42, 0.1);
+  flex-direction: column;
+  padding: 1rem;
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+}
+
+.mobile-members.open {
+  transform: translateX(0);
+}
+
+.mobile-members-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.mobile-members-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: #0f172a;
 }
 
 .chat-window {
@@ -551,17 +720,17 @@ h1 {
   padding-right: 0.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 0.75rem;
   scroll-behavior: smooth;
 }
 
 .message-list {
   list-style: none;
   margin: 0;
-  padding: 20px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.35rem;
 }
 
 .message {
@@ -578,28 +747,28 @@ h1 {
 }
 
 .message-bubble {
-  max-width: min(520px, 90%);
-  padding: 0.85rem 1rem;
-  border-radius: 16px;
+  max-width: min(640px, 88%);
+  padding: 0.5rem 0.75rem;
+  border-radius: 14px;
   background: rgba(59, 130, 246, 0.12);
   color: #0f172a;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  box-shadow: 0 12px 28px rgba(59, 130, 246, 0.12);
+  gap: 0.2rem;
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.1);
 }
 
 .message.self .message-bubble {
   background: rgba(16, 185, 129, 0.18);
-  box-shadow: 0 12px 28px rgba(16, 185, 129, 0.15);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.12);
 }
 
 .message-bubble header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 1rem;
-  font-size: 0.85rem;
+  gap: 0.5rem;
+  font-size: 0.75rem;
   color: #0369a1;
 }
 
@@ -617,21 +786,22 @@ h1 {
 
 .message-bubble .body {
   margin: 0;
+  font-size: 0.9375rem;
   white-space: pre-wrap;
-  line-height: 1.6;
+  line-height: 1.45;
   color: #0f172a;
 }
 
 .message-system {
   align-self: center;
-  padding: 0.6rem 1rem;
+  padding: 0.35rem 0.75rem;
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.08);
   color: #1e293b;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .message-system time {
@@ -676,17 +846,25 @@ h1 {
 .composer {
   display: flex;
   flex-direction: column;
+  gap: 0.5rem;
+}
+
+.composer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
+  order: -1;
 }
 
 .composer textarea {
   width: 100%;
-  padding: 0.9rem 1rem;
-  border-radius: 16px;
+  padding: 0.65rem 0.875rem;
+  border-radius: 14px;
   border: 1px solid rgba(148, 163, 184, 0.45);
   resize: none;
-  font-size: 1rem;
-  line-height: 1.6;
+  font-size: 0.9375rem;
+  line-height: 1.45;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
@@ -698,23 +876,11 @@ h1 {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
 }
 
-.composer-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.composer-hint {
-  font-size: 0.85rem;
-  color: #64748b;
-}
-
 .cta {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.9rem 2rem;
+  padding: 0.7rem 1.6rem;
   border-radius: 999px;
   font-weight: 600;
   border: none;
@@ -735,15 +901,53 @@ h1 {
   box-shadow: 0 14px 32px rgba(16, 185, 129, 0.4);
 }
 
+.send-button {
+  padding: 0.55rem 1.25rem;
+  font-size: 0.9rem;
+}
+
+@media (min-width: 641px) {
+  .composer-toolbar {
+    order: 0;
+  }
+}
+
 @media (max-width: 1090px) {
   .room-shell {
     grid-template-columns: minmax(0, 1fr);
-    gap: 1.5rem;
+    gap: 1rem;
   }
 
   .room-left {
     display: none;
   }
+
+  .chat-header,
+  .mobile-members {
+    display: flex;
+  }
+}
+
+html.dark .chat-header {
+  border-bottom-color: rgba(74, 222, 128, 0.15);
+}
+
+html.dark .chat-header-room {
+  color: #f0fdf4;
+}
+
+html.dark .chat-header-count {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+}
+
+html.dark .mobile-members {
+  background: rgba(15, 23, 42, 0.95);
+  border-left-color: rgba(74, 222, 128, 0.15);
+}
+
+html.dark .mobile-members-header h2 {
+  color: #f0fdf4;
 }
 .visually-hidden {
   position: absolute;
@@ -761,18 +965,18 @@ h1 {
 .composer-preview {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
+  gap: 0.625rem;
+  padding: 0.5rem;
   background: rgba(236, 253, 245, 0.6);
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
 .composer-preview img {
-  width: 64px;
-  height: 64px;
+  width: 48px;
+  height: 48px;
   object-fit: cover;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
 .preview-meta {
@@ -808,19 +1012,15 @@ h1 {
   font-weight: 600;
 }
 
-.composer-left {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 .image-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.7rem 1.2rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
   border-radius: 999px;
-  font-weight: 600;
+  font-size: 1.1rem;
   color: #047857;
   background: rgba(236, 253, 245, 0.9);
   border: 1px solid rgba(16, 185, 129, 0.3);
@@ -841,26 +1041,192 @@ h1 {
 }
 
 .message-image {
-  max-width: min(240px, 60vw);
-  max-height: 240px;
-  border-radius: 12px;
+  max-width: min(200px, 55vw);
+  max-height: 200px;
+  border-radius: 10px;
   cursor: pointer;
+  display: block;
+}
+
+.message-image :deep(.el-image__inner) {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 10px;
   object-fit: cover;
   display: block;
 }
 
-.message-image:hover {
+.message-image:hover :deep(.el-image__inner) {
   opacity: 0.92;
 }
 
-.message-image:focus {
+.message-image:focus :deep(.el-image__inner) {
   outline: 2px solid rgba(59, 130, 246, 0.6);
   outline-offset: 2px;
 }
 
 @media (max-width: 1090px) {
   .message-image {
-    max-width: min(200px, 70vw);
+    max-width: min(160px, 65vw);
   }
+
+  .message-image :deep(.el-image__inner) {
+    max-height: 160px;
+  }
+}
+
+html.dark .room-header {
+  background: rgba(6, 78, 59, 0.6);
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
+html.dark .room-tag {
+  color: #34d399;
+}
+
+html.dark h1,
+html.dark h2,
+html.dark .user-name {
+  color: #e2e8f0;
+}
+
+html.dark .user-label {
+  color: #94a3b8;
+}
+
+html.dark .ghost {
+  color: #e2e8f0;
+  background: rgba(6, 78, 59, 0.5);
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
+html.dark .ghost:hover {
+  background: rgba(16, 185, 129, 0.25);
+}
+
+html.dark .sidebar {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(74, 222, 128, 0.15);
+}
+
+html.dark .sidebar h2 {
+  color: #e2e8f0;
+}
+
+html.dark .member-card {
+  background: rgba(6, 78, 59, 0.5);
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
+html.dark .member-name {
+  color: #e2e8f0;
+}
+
+html.dark .member-status {
+  color: #34d399;
+}
+
+html.dark .sidebar-hint {
+  color: #94a3b8;
+}
+
+html.dark .chat-panel {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(74, 222, 128, 0.15);
+}
+
+html.dark .chat-empty h3,
+html.dark .chat-missing h2 {
+  color: #e2e8f0;
+}
+
+html.dark .chat-empty p,
+html.dark .chat-missing p {
+  color: #94a3b8;
+}
+
+html.dark .message-bubble {
+  background: rgba(59, 130, 246, 0.22);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+html.dark .message.self .message-bubble {
+  background: rgba(16, 185, 129, 0.22);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+html.dark .message-bubble header {
+  color: #7dd3fc;
+}
+
+html.dark .message.self .message-bubble header {
+  color: #6ee7b7;
+}
+
+html.dark .message-bubble .body {
+  color: #e2e8f0;
+}
+
+html.dark .message-system {
+  background: rgba(148, 163, 184, 0.15);
+  color: #cbd5e1;
+}
+
+html.dark .message-system time {
+  color: #94a3b8;
+}
+
+html.dark .composer textarea {
+  background: rgba(15, 23, 42, 0.7);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #e2e8f0;
+}
+
+html.dark .composer textarea:focus {
+  border-color: rgba(59, 130, 246, 0.6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+html.dark .composer-hint {
+  color: #94a3b8;
+}
+
+html.dark .image-button {
+  color: #34d399;
+  background: rgba(6, 78, 59, 0.5);
+  border-color: rgba(74, 222, 128, 0.25);
+}
+
+html.dark .image-button:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.25);
+}
+
+html.dark .composer-preview {
+  background: rgba(6, 78, 59, 0.4);
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
+html.dark .preview-name {
+  color: #e2e8f0;
+}
+
+html.dark .preview-size {
+  color: #94a3b8;
+}
+
+html.dark .image-error {
+  color: #fca5a5;
+}
+
+html.dark .orb-1 {
+  background: rgba(16, 185, 129, 0.45);
+}
+
+html.dark .orb-2 {
+  background: rgba(59, 130, 246, 0.45);
+}
+
+html.dark .orb-3 {
+  background: rgba(52, 211, 153, 0.38);
 }
 </style>

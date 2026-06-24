@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { compressImage, ImageTooLargeError } from '../useImageCompressor'
+import { compressImage, DEFAULT_MAX_IMAGE_SIZE, ImageTooLargeError } from '../useImageCompressor'
 
 describe('useImageCompressor', () => {
   const originalImage = global.Image
@@ -117,6 +117,22 @@ describe('useImageCompressor', () => {
 
     const context = mockContext
     expect(context!.drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 1200, 600)
+  })
+
+  it('throws ImageTooLargeError when default maxSize is exceeded', async () => {
+    mockBlobSize = DEFAULT_MAX_IMAGE_SIZE + 1
+    const file = new File(['image'], 'photo.jpg', { type: 'image/jpeg' })
+    await expect(compressImage(file)).rejects.toBeInstanceOf(ImageTooLargeError)
+  })
+
+  it('scales image dimensions with default 800x800 limits', async () => {
+    mockImageWidth = 2000
+    mockImageHeight = 1000
+    const file = new File(['image'], 'photo.jpg', { type: 'image/jpeg' })
+    await compressImage(file)
+
+    const context = mockContext
+    expect(context!.drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 800, 400)
   })
 
   it('rejects when image loading fails', async () => {
