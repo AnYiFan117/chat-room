@@ -1,14 +1,33 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { Capacitor, type PluginListenerHandle } from '@capacitor/core'
+import { App as CapacitorApp } from '@capacitor/app'
 
 import { getInitialTheme, initTheme, setTheme, type Theme } from '@/composables/useTheme'
 
 const currentTheme = ref<Theme>('light')
+const router = useRouter()
+let backButtonHandle: PluginListenerHandle | null = null
 
-onMounted(() => {
+onMounted(async () => {
   initTheme()
   currentTheme.value = getInitialTheme()
+
+  if (Capacitor.isNativePlatform()) {
+    backButtonHandle = await CapacitorApp.addListener('backButton', () => {
+      if (window.history.length > 1 && router.currentRoute.value.path !== '/') {
+        router.back()
+      } else {
+        CapacitorApp.exitApp()
+      }
+    })
+  }
+})
+
+onBeforeUnmount(() => {
+  backButtonHandle?.remove()
+  backButtonHandle = null
 })
 
 const handleToggleTheme = () => {
@@ -24,7 +43,6 @@ const handleToggleTheme = () => {
       <RouterLink class="brand" to="/">Blow</RouterLink>
       <nav class="nav-links">
         <RouterLink class="nav-link" to="/">首页</RouterLink>
-        <RouterLink class="nav-link" to="/contact">联系</RouterLink>
         <button
           type="button"
           class="theme-toggle"
@@ -39,6 +57,15 @@ const handleToggleTheme = () => {
     <main class="app-main">
       <RouterView />
     </main>
+
+    <button
+      type="button"
+      class="theme-toggle theme-toggle--floating"
+      :aria-label="currentTheme === 'dark' ? '切换到白天模式' : '切换到黑夜模式'"
+      @click="handleToggleTheme"
+    >
+      {{ currentTheme === 'dark' ? '☀️' : '🌙' }}
+    </button>
   </div>
 </template>
 
@@ -106,32 +133,6 @@ const handleToggleTheme = () => {
   box-shadow: 0 8px 18px rgba(14, 116, 144, 0.3);
 }
 
-@media (max-width: 520px) {
-  .app-header {
-    padding: 0.75rem;
-    gap: 0.75rem;
-  }
-
-  .brand {
-    font-size: 1.1rem;
-  }
-
-  .nav-links {
-    gap: 0.35rem;
-  }
-
-  .nav-link {
-    padding: 0.45rem 0.75rem;
-    font-size: 0.8rem;
-  }
-
-  .theme-toggle {
-    width: 2.2rem;
-    height: 2.2rem;
-    font-size: 1rem;
-  }
-}
-
 .theme-toggle {
   display: inline-flex;
   align-items: center;
@@ -156,12 +157,41 @@ const handleToggleTheme = () => {
   transform: translateY(-2px);
 }
 
+.theme-toggle--floating {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .app-header {
+    display: none;
+  }
+
+  .theme-toggle--floating {
+    display: inline-flex;
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 0.6rem);
+    right: 0.75rem;
+    z-index: 100;
+    width: 2.2rem;
+    height: 2.2rem;
+    font-size: 1rem;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+  }
+}
+
 .app-main {
   max-height: calc(100vh - 80px);
   min-height: 600px;
   flex: 1;
   background: #ecfdf5;
   overflow: auto;
+}
+
+@media (max-width: 520px) {
+  .app-main {
+    max-height: 100vh;
+    min-height: 100vh;
+  }
 }
 
 html.dark .app-header {
