@@ -593,7 +593,9 @@ export const useRoomStore = defineStore('room', {
       const username = user.username.trim().length > 0 ? user.username.trim() : DEFAULT_USERNAME
       const localJoinedAt = Date.now()
 
-      const session: RoomSession = markRaw({
+      // 注意：session 必须保持响应式（messages/participants 驱动 UI），
+      // 不能整体 markRaw；ws/cryptoKey 等非响应式对象单独存放即可。
+      const session: RoomSession = {
         roomId,
         ws: null,
         cryptoKey: null,
@@ -607,11 +609,11 @@ export const useRoomStore = defineStore('room', {
         pingTimer: null,
         closedByUser: false,
         cleanup: () => {},
-      }) as RoomSession
+      }
 
       // 派生加密密钥（一次，缓存到会话）
       try {
-        session.cryptoKey = await deriveAesKey(roomId)
+        session.cryptoKey = markRaw(await deriveAesKey(roomId))
       } catch (error) {
         console.warn('派生加密密钥失败', error)
       }
@@ -657,7 +659,7 @@ export const useRoomStore = defineStore('room', {
           scheduleReconnect()
           return
         }
-        session.ws = ws
+        session.ws = markRaw(ws)
 
         ws.onopen = () => {
           console.log(`[relay ${roomId}] connected`)
