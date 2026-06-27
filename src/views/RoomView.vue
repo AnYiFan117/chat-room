@@ -5,12 +5,17 @@ import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/roomStore'
 import { compressImage, DEFAULT_MAX_IMAGE_SIZE, ImageTooLargeError } from '@/composables/useImageCompressor'
 import { getInitialTheme, setTheme, type Theme } from '@/composables/useTheme'
+import { setBackInterceptor } from '@/composables/useBackInterceptor'
 
 const props = defineProps<{ roomId: string }>()
 
 const USERNAME_KEY = 'play-chat-username'
 const USER_ID_KEY = 'play-chat-user-id'
 const DEFAULT_USERNAME = '匿名旅人'
+// 二次确认退出提示的保持时长(ms):此窗口内再次返回才真正退出
+const EXIT_CONFIRM_WINDOW = 2500
+// 判定"已滚到底部"的容差(px)
+const BOTTOM_THRESHOLD = 60
 
 const router = useRouter()
 const roomStore = useRoomStore()
@@ -21,6 +26,7 @@ const activeRoomId = ref('')
 const roomMissing = ref(false)
 const messageInput = ref('')
 const chatWindowRef = ref<HTMLElement | null>(null)
+const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const pendingImage = ref<{ dataUrl: string; fileName: string; size: number } | null>(null)
@@ -28,6 +34,14 @@ const imageError = ref<string | null>(null)
 const isCompressing = ref(false)
 const membersOpen = ref(false)
 const currentTheme = ref<Theme>('light')
+
+// 功能2:二次确认退出
+const confirmExitPending = ref(false)
+let exitConfirmTimer: ReturnType<typeof setTimeout> | null = null
+
+// 功能3:是否贴底 / 是否显示"回到最新"按钮
+const isAtBottom = ref(true)
+const showJumpToLatest = ref(false)
 
 const handleToggleTheme = () => {
   const next = currentTheme.value === 'dark' ? 'light' : 'dark'
@@ -130,6 +144,7 @@ const handleSendMessage = () => {
     pendingImage.value = null
     imageError.value = null
     messageInput.value = ''
+    keepComposerFocused()
     nextTick(() => scrollChatToBottom('smooth'))
     return
   }
@@ -142,7 +157,20 @@ const handleSendMessage = () => {
   })
 
   messageInput.value = ''
+  keepComposerFocused()
   nextTick(() => scrollChatToBottom('smooth'))
+}
+
+// 功能1:发送后保持输入框聚焦,避免移动端键盘自动收起
+const keepComposerFocused = () => {
+  const el = textareaRef.value
+  if (!el) return
+  // 同步重新聚焦(尽量保留在用户手势上下文内,以便唤起软键盘)
+  el.focus({ preventScroll: true })
+  // 下一帧兜底:form submit/Enter 处理后若仍失焦再补一次
+  nextTick(() => {
+    if (document.activeElement !== el) el.focus({ preventScroll: true })
+  })
 }
 
 const handleComposerKeydown = (event: KeyboardEvent) => {
@@ -207,9 +235,60 @@ const scrollChatToBottom = (behavior: ScrollBehavior = 'auto') => {
   if (!container) return
   if (typeof container.scrollTo === 'function') {
     container.scrollTo({ top: container.scrollHeight, behavior })
-    return
+  } else {
+    container.scrollTop = container.scrollHeight
   }
-  container.scrollTop = container.scrollHeight
+  // 主动滚到底后即视为贴底,隐藏"回到最新"
+  isAtBottom.value = true
+  showJumpToLatest.value = false
+}
+
+// 功能3:监听聊天区滚动,判断是否贴底
+const handleChatScroll = () => {
+  const container = chatWindowRef.value
+  if (!container) return
+  const distanceToBottom =
+    container.scrollHeight - container.scrollTop - container.clientHeight
+  isAtBottom.value = distanceToBottom <= BOTTOM_THRESHOLD
+  // 离开底部一定距离才显示按钮,贴底则隐藏
+  showJumpToLatest.value = !isAtBottom.value
+}
+
+// 功能3:点击"回到最新"
+const handleJumpToLatest = () => {
+  scrollChatToBottom('smooth')
+}
+
+// 功能1+2:清除二次确认提示状态
+const clearExitConfirm = () => {
+  confirmExitPending.value = false
+  if (exitConfirmTimer) {
+    clearTimeout(exitConfirmTimer)
+    exitConfirmTimer = null
+  }
+}
+
+// 功能1+2:系统返回手势的拦截处理
+// 返回 true 表示本次返回已被处理(不退出房间)
+const handleBackIntercept = (): boolean => {
+  const el = textareaRef.value
+  const inputFocused = !!el && document.activeElement === el
+
+  // 第一次返回:若输入法聚焦则收起;并弹出"再次返回退出"提示
+  if (!confirmExitPending.value) {
+    if (inputFocused) el.blur()
+    confirmExitPending.value = true
+    if (exitConfirmTimer) clearTimeout(exitConfirmTimer)
+    exitConfirmTimer = setTimeout(() => {
+      confirmExitPending.value = false
+      exitConfirmTimer = null
+    }, EXIT_CONFIRM_WINDOW)
+    return true
+  }
+
+  // 第二次返回(提示窗口内):放行,真正退出房间
+  clearExitConfirm()
+  return false
 }
 
 onMounted(() => {
@@ -217,9 +296,12 @@ onMounted(() => {
   ensureSelfIdentity()
   currentTheme.value = getInitialTheme()
   joinRoomFlow(normalizedRoomId.value)
+  setBackInterceptor(handleBackIntercept)
 })
 
 onBeforeUnmount(() => {
+  setBackInterceptor(null)
+  clearExitConfirm()
   leaveActiveRoom()
 })
 
@@ -243,10 +325,15 @@ watch(username, (nextName) => {
 
 watch(
   () => messages.value.length,
-  () => {
+  (nextLen, prevLen) => {
     if (roomMissing.value) return
     nextTick(() => {
-      scrollChatToBottom('smooth')
+      // 功能3:仅在贴底时自动跟随最新消息;否则保留位置并提示有新消息
+      if (isAtBottom.value) {
+        scrollChatToBottom('smooth')
+      } else if (nextLen > (prevLen ?? 0)) {
+        showJumpToLatest.value = true
+      }
     })
   },
 )
@@ -341,7 +428,7 @@ watch(
         </button>
       </header>
 
-      <div ref="chatWindowRef" class="chat-window">
+      <div ref="chatWindowRef" class="chat-window" @scroll="handleChatScroll">
         <template v-if="roomMissing">
           <div class="chat-missing">
             <h2>房间不存在</h2>
@@ -391,6 +478,25 @@ watch(
           </div>
         </template>
       </div>
+
+      <transition name="fade-jump">
+        <button
+          v-if="showJumpToLatest && !roomMissing"
+          type="button"
+          class="jump-latest"
+          aria-label="回到最新消息"
+          @click="handleJumpToLatest"
+        >
+          <span class="jump-latest-arrow" aria-hidden="true">↓</span>
+          最新消息
+        </button>
+      </transition>
+
+      <transition name="fade-toast">
+        <div v-if="confirmExitPending" class="exit-confirm-toast" role="status">
+          再次左滑返回即可退出房间
+        </div>
+      </transition>
 
       <aside class="mobile-members" :class="{ open: membersOpen }" aria-label="在线成员">
         <div class="mobile-members-header">
@@ -444,6 +550,7 @@ watch(
             {{ isCompressing ? '…' : '📎' }}
           </button>
           <textarea
+            ref="textareaRef"
             v-model="messageInput"
             rows="1"
             placeholder="输入消息…"
@@ -1428,6 +1535,106 @@ html.dark .composer {
   html.dark .composer {
     background: rgba(15, 23, 42, 0.94);
     border-top-color: rgba(74, 222, 128, 0.15);
+  }
+}
+
+/* 功能3:回到最新消息悬浮按钮 */
+.jump-latest {
+  position: absolute;
+  right: 1rem;
+  bottom: 5.5rem;
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: rgba(255, 255, 255, 0.97);
+  color: #047857;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.16);
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
+}
+
+.jump-latest:hover {
+  transform: translateY(-2px);
+  background: rgba(236, 253, 245, 0.98);
+}
+
+.jump-latest-arrow {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+html.dark .jump-latest {
+  background: rgba(30, 41, 59, 0.97);
+  border-color: rgba(74, 222, 128, 0.3);
+  color: #34d399;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+}
+
+.fade-jump-enter-active,
+.fade-jump-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.fade-jump-enter-from,
+.fade-jump-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+/* 功能2:二次确认退出悬浮提示(非弹窗,自动消失) */
+.exit-confirm-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 5.5rem;
+  transform: translateX(-50%);
+  z-index: 9;
+  max-width: 80%;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.88);
+  color: #f8fafc;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.28);
+  pointer-events: none;
+}
+
+html.dark .exit-confirm-toast {
+  background: rgba(226, 232, 240, 0.92);
+  color: #0f172a;
+}
+
+.fade-toast-enter-active,
+.fade-toast-leave-active {
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+
+.fade-toast-enter-from,
+.fade-toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+}
+
+@media (max-width: 520px) {
+  .jump-latest {
+    bottom: 4.75rem;
+  }
+
+  .exit-confirm-toast {
+    bottom: 4.75rem;
   }
 }
 </style>

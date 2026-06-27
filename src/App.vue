@@ -5,6 +5,7 @@ import { Capacitor, type PluginListenerHandle } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
 
 import { getInitialTheme, initTheme, setTheme, type Theme } from '@/composables/useTheme'
+import { runBackInterceptor } from '@/composables/useBackInterceptor'
 
 const currentTheme = ref<Theme>('light')
 const router = useRouter()
@@ -19,6 +20,9 @@ onMounted(async () => {
 
   if (Capacitor.isNativePlatform()) {
     backButtonHandle = await CapacitorApp.addListener('backButton', () => {
+      // 先交给当前页面的拦截器(如聊天室的收输入法/二次确认退出)
+      if (runBackInterceptor()) return
+
       if (window.history.length > 1 && router.currentRoute.value.path !== '/') {
         router.back()
       } else {
