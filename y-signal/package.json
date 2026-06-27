@@ -1,0 +1,13 @@
+{
+  "name": "y-signal",
+  "version": "2.0.0",
+  "description": "房间消息中转服务（WebSocket 广播，端到端加密密文透传）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "ws": "^8.18.3"
+  }
+}
