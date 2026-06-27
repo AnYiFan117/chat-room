@@ -4,9 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目定位
 
-这是一个基于 **Vue 3 + Vite + Pinia + Vue Router** 的 P2P 聊天室前端。
-消息不经过中心化的应用服务器，而是通过 **Yjs + y-webrtc** 在浏览器之间直接同步。
-用户创建/加入房间后，所有聊天消息、成员在线状态都通过 WebRTC data channel 共享同一个 Yjs document。
+这是一个基于 **Vue 3 + Vite + Pinia + Vue Router** 的实时聊天室前端。
+消息通过 **WebSocket 中转服务器**在浏览器之间广播（不做 WebRTC P2P、不落库、不持久化）。
+聊天文本采用 **AES-GCM 端到端加密**，密钥由 房间号 + 固定 app salt 经 PBKDF2 派生，
+服务器只透传密文。用户创建/加入房间后，聊天消息与在线成员状态都通过这条 WebSocket 同步。
+
+> 注：v1.0 之前使用 Yjs + y-webrtc 的 WebRTC P2P 架构（自建信令 + coturn TURN），
+> 因 NAT 打洞/TURN/自签证书维护成本过高，已迁移为 WebSocket 中转。
 
 ## 常用命令
 
@@ -55,17 +59,21 @@ npm run test:e2e
 
 核心仓库，承担以下职责：
 
-- 维护每个房间的 `Y.Doc` 与 `WebrtcProvider` 会话
-- 通过 `Y.Array<RoomMessage>`（键为 `messages`）同步聊天消息
-- 通过 provider 的 `awareness` 广播和感知在线成员
-- 对聊天文本做 XOR + base64 加密（系统消息和普通消息），图片消息**不加密**以避免体积膨胀
+- 维护每个房间的 **WebSocket 连接**（含断线指数退避重连、心跳 ping）
+- 通过自定义 JSON 协议收发消息：`join` / `chat` / `presence` / `ping`（client→server），
+  `participants` / `chat` / `pong`（server→client）
+- 对聊天文本做 **AES-GCM 加密**（`encryptContent` / `decryptContent`，密钥由 `deriveAesKey` 派生并缓存在会话上），
+  图片消息**不加密**以避免体积膨胀
+- 在线成员由服务器维护并通过 `participants` 消息全量下发
 - 本地 `localStorage` 记录已加入房间列表（`play-chat-room-ids`）
 
 重要实现细节：
 
 - 房间 ID 会被 `normalizeRoomId` 转为大写
-- 系统消息（用户加入/离开）由 `recordSystemMessage` 写入
-- 图片消息经 `compressImage` 压缩后同步，发送前会检查是否超过 WebRTC 单条消息安全上限（约 240 KB）
+- **发送方乐观更新**：自己的消息发送时立即 `appendMessage` 本地显示，服务器只转发给其他人（不回显给自己）
+- 系统消息（用户加入/离开）由 `recordSystemMessage` 在**本地**生成，不走网络
+- 图片消息经 `compressImage` 压缩后同步，发送前检查是否超过单条消息上限（约 2 MB）
+- `connect()` 是 **async**（需先 `await deriveAesKey` 派生密钥再建连），调用处需 `await`
 
 ### 3. 图片压缩（`src/composables/useImageCompressor.ts`）
 
@@ -85,17 +93,20 @@ systemctl reload nginx   # 在目标服务器上执行
 当前服务器配置：
 
 - 前端静态资源：`/home/chat-room/dist`
-- nginx 监听 `https://8.152.98.245/`，`/signal` 路径代理到本地 y-webrtc 信令服务器 `http://127.0.0.1:23333`
-- 信令服务在 `y-signal/server.js` 中启动，与前端是独立进程
+- nginx 监听 `https://8.152.98.245/`，`/signal` 路径代理到本地消息中转服务 `http://127.0.0.1:23333`（保持 WebSocket upgrade）
+- 中转服务为仓库内 `y-signal/server.js`（CommonJS + `ws` 库），部署在 `/home/y-signal/`，
+  与前端是独立进程；在服务器的 tmux 会话 `y-0` 窗口 0 内 `node server.js` 运行
+- 更新中转服务：把 `y-signal/server.js` scp 到 `/home/y-signal/server.js`，在 tmux 窗口 Ctrl+C 停旧进程后重新 `node server.js`
 
 ### 5. 环境变量
 
 运行时通过 `.env` 注入（已加入 `.gitignore`，**禁止提交真实凭据**）：
 
-- `VITE_SIGNALING_ENDPOINT`：单个信令端点，代码会自动拼接 `?room=ROOM_ID`
-- `VITE_ICE_SERVERS`：JSON 数组格式的 STUN/TURN 服务器配置
+- `VITE_SIGNALING_ENDPOINT`：WebSocket 中转端点，代码会自动拼接 `?room=ROOM_ID`（线上 `wss://`，本地 `ws://localhost:23333/signal`）
+- `VITE_ICE_SERVERS`：**已废弃**（旧 WebRTC 架构遗留），WebSocket 中转不再使用
 
-若未设置，仓库不会自动回退到默认服务器，需要手动配置。
+GitHub Actions 打 APK 时，从 GitHub Secrets 注入这两个变量（见 `.github/workflows/build-apk.yml`）。
+**`VITE_SIGNALING_ENDPOINT` 必须是干净的单行 wss 地址，不能误填成 ICE JSON 或带换行**（历史踩坑）。
 
 ## 版本控制与发布流程
 
@@ -129,6 +140,7 @@ systemctl reload nginx   # 在目标服务器上执行
 
 ## 注意事项
 
-- WebRTC SCTP data channel 在 Chromium 中约有 256 KB 的单条消息上限，因此图片消息严禁超过该限制。当前已通过压缩 + 不加密 + 发送前丢弃超大图来规避
+- 消息走 WebSocket 中转，无 WebRTC 的 256 KB 单帧硬限；但图片仍经压缩 + 不加密 + 发送前丢弃超大图（约 2 MB 上限）来控制体积与反代压力
+- 协议是自定义的，**网页端与 APK 端必须同时是同协议版本才能互通**；切换中转服务时旧版客户端会失效，需同步发版
 - `dist/` 是构建产物，已被 `.gitignore` 忽略；提交代码时只提交 `src/` 等源码
 - 项目使用 `npm-run-all2` 并行执行 `type-check` 和 `build-only`，`npm run build` 失败时通常先看 `vue-tsc` 的类型错误

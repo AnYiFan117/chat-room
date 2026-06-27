@@ -1,18 +1,27 @@
 // 处理聊天室状态与同步逻辑的 Pinia 仓库
+// 传输层：自定义 JSON over WebSocket（消息经服务器中转，不做 P2P）
+// 加密层：AES-GCM 端到端加密，密钥由 房间号 + 固定 app salt 经 PBKDF2 派生
 import { acceptHMRUpdate, defineStore } from 'pinia'
 import { markRaw } from 'vue'
-import * as Y from 'yjs'
-import { WebrtcProvider } from 'y-webrtc'
 
 // 本地存储曾加入房间 ID 列表的键值
 const KNOWN_ROOMS_KEY = 'play-chat-room-ids'
 // 默认访客昵称
 const DEFAULT_USERNAME = '匿名旅人'
 
-// 用于简单异或加密的固定种子
-const SECRET_SEED = 'play-chat-secret-seed'
-// 加密消息的前缀标记
-const ENCRYPTION_PREFIX = 'enc::v1::'
+// 端到端加密参数
+const APP_SALT = 'play-chat-app-2026'
+const ENCRYPTION_PREFIX = 'aes-gcm::v1::'
+const AES_IV_LENGTH = 12
+const PBKDF2_ITERATIONS = 100000
+
+// WebSocket 行为参数
+const PING_INTERVAL_MS = 25000
+const RECONNECT_BASE_MS = 1000
+const RECONNECT_MAX_MS = 30000
+const RECONNECT_MAX_ATTEMPTS = 12
+// 单条图片消息上限（WebSocket 无 256KB 硬限，但仍留余量，避免滥用与反代压力）
+const IMAGE_SAFE_LIMIT = 2 * 1024 * 1024
 
 // 封装浏览器与 Node 环境可能存在差异的编码器
 const textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null
@@ -85,63 +94,65 @@ const fromBase64 = (value: string): Uint8Array => {
   throw new Error('Base64 decoding is not supported in this environment')
 }
 
-// 基于房间 ID 构造伪随机字节流，用于 XOR 加密
-const createKeyStream = (roomId: string) => {
-  const base = `${SECRET_SEED}:${roomId}`
-  let state = 0x6d2b79f5
-  for (let index = 0; index < base.length; index += 1) {
-    state = (state + base.charCodeAt(index)) >>> 0
-    state = Math.imul(state ^ (state >>> 15), 0x2c1b3c6d) >>> 0
-  }
-
-  if (state === 0) {
-    state = 0x6d2b79f5
-  }
-
-  return () => {
-    state ^= state << 13
-    state >>>= 0
-    state ^= state >>> 17
-    state >>>= 0
-    state ^= state << 5
-    state >>>= 0
-    return state & 0xff
-  }
+// 基于 房间号 + 固定 salt 派生 AES-GCM 256 位密钥
+const deriveAesKey = async (roomId: string): Promise<CryptoKey> => {
+  const baseKey = await crypto.subtle.importKey(
+    'raw',
+    encodeUtf8(roomId) as BufferSource,
+    { name: 'PBKDF2' },
+    false,
+    ['deriveKey'],
+  )
+  return crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: encodeUtf8(`${APP_SALT}:${roomId}`) as BufferSource,
+      iterations: PBKDF2_ITERATIONS,
+      hash: 'SHA-256',
+    },
+    baseKey,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  )
 }
 
-// 将明文与伪随机流 XOR，得到密文字节
-const xorBytes = (roomId: string, source: Uint8Array): Uint8Array => {
-  const nextByte = createKeyStream(roomId)
-  const result = new Uint8Array(source.length)
-  source.forEach((value, index) => {
-    result[index] = value ^ nextByte()
-  })
-  return result
-}
-
-// 对聊天内容进行加密并附加标记
-const encryptContent = (roomId: string, content: string): string => {
+// 用 AES-GCM 加密文本，返回 前缀 + base64(iv ‖ 密文)
+const encryptContent = async (key: CryptoKey, content: string): Promise<string> => {
   if (content.length === 0) return content
-  const encoded = encodeUtf8(content)
-  const transformed = xorBytes(roomId, encoded)
-  return `${ENCRYPTION_PREFIX}${toBase64(transformed)}`
+  const iv = crypto.getRandomValues(new Uint8Array(AES_IV_LENGTH))
+  const cipher = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: iv as BufferSource },
+    key,
+    encodeUtf8(content) as BufferSource,
+  )
+  const cipherBytes = new Uint8Array(cipher)
+  const combined = new Uint8Array(iv.length + cipherBytes.length)
+  combined.set(iv, 0)
+  combined.set(cipherBytes, iv.length)
+  return `${ENCRYPTION_PREFIX}${toBase64(combined)}`
 }
 
-// 解密聊天内容，失败时给出提示文本
-const decryptContent = (roomId: string, payload: string): string => {
+// 解密 AES-GCM 内容，失败时给出提示文本
+const decryptContent = async (key: CryptoKey, payload: string): Promise<string> => {
   if (!payload.startsWith(ENCRYPTION_PREFIX)) return payload
   try {
-    const raw = payload.slice(ENCRYPTION_PREFIX.length)
-    const bytes = fromBase64(raw)
-    const decoded = xorBytes(roomId, bytes)
-    return decodeUtf8(decoded)
+    const combined = fromBase64(payload.slice(ENCRYPTION_PREFIX.length))
+    const iv = combined.slice(0, AES_IV_LENGTH)
+    const cipher = combined.slice(AES_IV_LENGTH)
+    const plain = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: iv as BufferSource },
+      key,
+      cipher as BufferSource,
+    )
+    return decodeUtf8(new Uint8Array(plain))
   } catch (error) {
     console.warn('解密消息失败', error)
     return '[消息解密失败]'
   }
 }
 
-// 消息类型分为普通聊天与系统通知
+// 消息类型分为普通聊天、系统通知与图片
 type MessageType = 'chat' | 'system' | 'image'
 
 // 聊天消息的存储结构
@@ -166,16 +177,27 @@ export interface RoomParticipant {
   joinedAt: number
 }
 
+// 网络层用的 presence 结构
+interface Presence {
+  userId: string
+  username: string
+  joinedAt: number
+}
+
 // 单个房间的运行时会话信息
 interface RoomSession {
   roomId: string
-  doc: Y.Doc
-  provider: WebrtcProvider
-  yMessages: Y.Array<RoomMessage>
+  ws: WebSocket | null
+  cryptoKey: CryptoKey | null
   messages: RoomMessage[]
   participants: RoomParticipant[]
   hasAnnouncedJoin: boolean
   localJoinedAt: number
+  localUser: Presence
+  reconnectAttempt: number
+  reconnectTimer: ReturnType<typeof setTimeout> | null
+  pingTimer: ReturnType<typeof setInterval> | null
+  closedByUser: boolean
   cleanup: () => void
 }
 
@@ -208,17 +230,6 @@ const generateMessageId = () => {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
 
-const buildEncryptedMessage = (
-  roomId: string,
-  partial: Omit<RoomMessage, 'id' | 'timestamp' | 'encrypted'>,
-): RoomMessage => ({
-  id: generateMessageId(),
-  ...partial,
-  content: encryptContent(roomId, partial.content),
-  timestamp: Date.now(),
-  encrypted: true,
-})
-
 // 从 localStorage 读取已知房间列表
 const readKnownRooms = (): string[] => {
   if (typeof window === 'undefined') return []
@@ -247,18 +258,15 @@ const persistKnownRooms = (rooms: string[]) => {
   window.localStorage.setItem(KNOWN_ROOMS_KEY, JSON.stringify(Array.from(new Set(rooms))))
 }
 
-// 清洗并解密消息，过滤掉空消息
-const sanitizeMessage = (payload: unknown, roomId: string): RoomMessage | null => {
+// 校验并规整一条消息的字段（不含解密，解密在外层异步完成后传入 decryptedContent）
+const sanitizeMessage = (payload: unknown, decryptedContent: string): RoomMessage | null => {
   if (!payload || typeof payload !== 'object') return null
   const message = payload as Partial<RoomMessage>
 
   const type: MessageType =
     message.type === 'system' ? 'system' : message.type === 'image' ? 'image' : 'chat'
-  const rawContent = typeof message.content === 'string' ? message.content : ''
-  const decryptedContent = decryptContent(roomId, rawContent)
   const normalizedContent = decryptedContent.trim()
   if (type === 'chat' && normalizedContent.length === 0) return null
-  const wasEncrypted = rawContent.startsWith(ENCRYPTION_PREFIX) || message.encrypted === true
 
   return {
     id:
@@ -273,7 +281,7 @@ const sanitizeMessage = (payload: unknown, roomId: string): RoomMessage | null =
         : DEFAULT_USERNAME,
     content: normalizedContent,
     timestamp: typeof message.timestamp === 'number' ? message.timestamp : Date.now(),
-    encrypted: wasEncrypted,
+    encrypted: message.encrypted === true,
     fileName: typeof message.fileName === 'string' ? message.fileName : undefined,
     size: typeof message.size === 'number' ? message.size : undefined,
     width: typeof message.width === 'number' ? message.width : undefined,
@@ -281,43 +289,18 @@ const sanitizeMessage = (payload: unknown, roomId: string): RoomMessage | null =
   }
 }
 
-// 将 awareness 中的原始状态转换为参与者信息
+// 将服务器下发的 presence 转换为参与者信息
 const buildParticipant = (payload: unknown): RoomParticipant | null => {
   if (!payload || typeof payload !== 'object') return null
   const candidate = payload as Record<string, unknown>
-  if (!('user' in candidate)) return null
-
-  const user = (candidate as { user?: Record<string, unknown> }).user
-  if (!user || typeof user !== 'object') return null
-
-  const id = typeof user.id === 'string' ? user.id : null
+  const id = typeof candidate.userId === 'string' ? candidate.userId : null
   if (!id) return null
-
   const name =
-    typeof user.name === 'string' && user.name.trim().length > 0
-      ? user.name.trim()
+    typeof candidate.username === 'string' && candidate.username.trim().length > 0
+      ? candidate.username.trim()
       : DEFAULT_USERNAME
-  const joinedAt = typeof user.joinedAt === 'number' ? user.joinedAt : Date.now()
-
-  return {
-    userId: id,
-    username: name,
-    joinedAt,
-  }
-}
-
-// 更新本地 awareness，广播自身信息给其他 peer
-const setLocalAwareness = (
-  provider: WebrtcProvider,
-  user: { id: string; username: string },
-  joinedAt: number,
-) => {
-  const trimmedName = user.username.trim().length > 0 ? user.username.trim() : DEFAULT_USERNAME
-  provider.awareness.setLocalStateField('user', {
-    id: user.id,
-    name: trimmedName,
-    joinedAt,
-  })
+  const joinedAt = typeof candidate.joinedAt === 'number' ? candidate.joinedAt : Date.now()
+  return { userId: id, username: name, joinedAt }
 }
 
 // Pinia 仓库：负责管理房间会话、消息与参与者状态
@@ -377,17 +360,23 @@ export const useRoomStore = defineStore('room', {
       const normalizedId = normalizeRoomId(roomId)
       return this.knownRooms.includes(normalizedId)
     },
+    // 从环境变量构建 WebSocket 中转地址
+    getRelayEndpoint(roomId: string): string | null {
+      const endpoint = import.meta.env.VITE_SIGNALING_ENDPOINT
+      if (!endpoint) return null
+      return `${endpoint}?room=${roomId}`
+    },
     // 连接房间，必要时创建新的会话
-    connect(roomId: string, user: { id: string; username: string }) {
+    async connect(roomId: string, user: { id: string; username: string }) {
       const normalizedId = normalizeRoomId(roomId)
       this.markRoomKnown(normalizedId)
 
       let session = this.sessions[normalizedId]
       if (!session) {
-        session = this.initializeSession(normalizedId, user)
+        session = await this.initializeSession(normalizedId, user)
         this.sessions[normalizedId] = session
       } else {
-        setLocalAwareness(session.provider, user, session.localJoinedAt)
+        this.updateLocalUsername(normalizedId, user)
       }
 
       if (!session.hasAnnouncedJoin) {
@@ -417,23 +406,65 @@ export const useRoomStore = defineStore('room', {
       session.cleanup()
       delete this.sessions[normalizedId]
     },
-    // 推送聊天消息到房间
+    // 向会话的 WebSocket 发送一条 JSON 消息（连接未就绪则忽略）
+    sendToServer(session: RoomSession, message: Record<string, unknown>) {
+      const ws = session.ws
+      if (!ws || ws.readyState !== WebSocket.OPEN) return
+      try {
+        ws.send(JSON.stringify(message))
+      } catch (error) {
+        console.warn('发送消息失败', error)
+      }
+    },
+    // 将一条消息追加到本地列表（按 id 去重并保持时间排序）
+    appendMessage(roomId: string, message: RoomMessage) {
+      const session = this.sessions[roomId]
+      if (!session) return
+      if (session.messages.some((item) => item.id === message.id)) return
+      const next = [...session.messages, message].sort((a, b) => a.timestamp - b.timestamp)
+      session.messages = next
+    },
+    // 推送聊天消息到房间（本地乐观显示 + 转发给其他人）
     sendMessage(roomId: string, payload: { userId: string; username: string; content: string }) {
       const normalizedId = normalizeRoomId(roomId)
       const session = this.sessions[normalizedId]
-      if (!session) return
+      if (!session || !session.cryptoKey) return
 
       const trimmedContent = payload.content.trim()
       if (!trimmedContent) return
 
-      session.yMessages.push([
-        buildEncryptedMessage(normalizedId, {
+      const username =
+        payload.username.trim().length > 0 ? payload.username.trim() : DEFAULT_USERNAME
+      const id = generateMessageId()
+      const timestamp = Date.now()
+
+      // 本地立即显示明文
+      this.appendMessage(normalizedId, {
+        id,
+        type: 'chat',
+        userId: payload.userId,
+        username,
+        content: trimmedContent,
+        timestamp,
+        encrypted: true,
+      })
+
+      // 加密后转发给其他人
+      void encryptContent(session.cryptoKey, trimmedContent).then((cipher) => {
+        this.sendToServer(session, {
           type: 'chat',
-          userId: payload.userId,
-          username: payload.username.trim().length > 0 ? payload.username.trim() : DEFAULT_USERNAME,
-          content: trimmedContent,
-        }),
-      ])
+          roomId: normalizedId,
+          payload: {
+            id,
+            type: 'chat',
+            userId: payload.userId,
+            username,
+            content: cipher,
+            timestamp,
+            encrypted: true,
+          },
+        })
+      })
     },
     sendImage(
       roomId: string,
@@ -452,14 +483,20 @@ export const useRoomStore = defineStore('room', {
       const trimmedDataUrl = payload.dataUrl.trim()
       if (!trimmedDataUrl) return
 
-      // 图片本身已是 base64 Data URL，若再走 XOR+base64 加密会让体积膨胀约 33%，
-      // 极易超过 WebRTC SCTP data channel 的单条消息上限（Chromium 约 256 KB）。
-      // 因此图片消息直接以原 Data URL 同步，不再额外加密。
+      // 图片本身已是 base64 Data URL，再走 AES-GCM 加密会膨胀且无明显收益，
+      // 因此图片消息以原 Data URL 同步，不加密。
+      if (trimmedDataUrl.length > IMAGE_SAFE_LIMIT) {
+        console.warn('图片超过单条消息安全上限，丢弃发送', trimmedDataUrl.length)
+        return
+      }
+
+      const username =
+        payload.username.trim().length > 0 ? payload.username.trim() : DEFAULT_USERNAME
       const message: RoomMessage = {
         id: generateMessageId(),
         type: 'image',
         userId: payload.userId,
-        username: payload.username.trim().length > 0 ? payload.username.trim() : DEFAULT_USERNAME,
+        username,
         content: trimmedDataUrl,
         timestamp: Date.now(),
         encrypted: false,
@@ -467,15 +504,10 @@ export const useRoomStore = defineStore('room', {
         size: payload.size,
       }
 
-      // WebRTC SCTP data channel 的单条消息上限在 Chromium 中约为 256 KB；
-      // 留一点余量给 y-webrtc 的 sync 协议头部。
-      const WEBRTC_SAFE_MESSAGE_LIMIT = 240 * 1024
-      if (message.content.length > WEBRTC_SAFE_MESSAGE_LIMIT) {
-        console.warn('图片超过 WebRTC 单条消息安全上限，丢弃发送', message.content.length)
-        return
-      }
-
-      session.yMessages.push([message])
+      // 本地立即显示
+      this.appendMessage(normalizedId, message)
+      // 转发给其他人
+      this.sendToServer(session, { type: 'chat', roomId: normalizedId, payload: message })
     },
     // 切换本地昵称并广播
     updateLocalUsername(roomId: string, user: { id: string; username: string }) {
@@ -483,168 +515,220 @@ export const useRoomStore = defineStore('room', {
       const session = this.sessions[normalizedId]
       if (!session) return
 
-      setLocalAwareness(session.provider, user, session.localJoinedAt)
+      const username = user.username.trim().length > 0 ? user.username.trim() : DEFAULT_USERNAME
+      session.localUser = {
+        userId: user.id,
+        username,
+        joinedAt: session.localJoinedAt,
+      }
+      this.sendToServer(session, {
+        type: 'presence',
+        roomId: normalizedId,
+        presence: session.localUser,
+      })
     },
-    // 记录系统消息，例如用户进出提示
+    // 记录系统消息（本地生成、本地加密、不走网络）
     recordSystemMessage(roomId: string, content: string) {
       const normalizedId = normalizeRoomId(roomId)
       const session = this.sessions[normalizedId]
       if (!session) return
 
-      session.yMessages.push([
-        {
-          id: generateMessageId(),
-          type: 'system',
-          userId: 'system',
-          username: '系统',
-          content: encryptContent(normalizedId, content),
-          timestamp: Date.now(),
-          encrypted: true,
-        },
-      ])
+      // 系统消息仅本地展示，直接以明文 append（encrypted 标记为 true 仅表示语义上属于加密体系）
+      this.appendMessage(normalizedId, {
+        id: generateMessageId(),
+        type: 'system',
+        userId: 'system',
+        username: '系统',
+        content,
+        timestamp: Date.now(),
+        encrypted: true,
+      })
     },
-    // 从环境变量解析 ICE 服务器配置
-    getIceServers(): RTCIceServer[] {
-      const envValue = import.meta.env.VITE_ICE_SERVERS
-      if (envValue) {
-        try {
-          // 预期格式：JSON 数组字符串
-          const parsed = JSON.parse(envValue)
-          if (Array.isArray(parsed)) {
-            return parsed.filter(
-              (item): item is RTCIceServer => item && typeof item === 'object' && 'urls' in item,
-            )
-          }
-        } catch (error) {
-          console.warn('解析 VITE_ICE_SERVERS 失败', error)
+    // 处理服务器下发的一条消息
+    handleServerMessage(roomId: string, raw: unknown) {
+      if (!raw || typeof raw !== 'object') return
+      const message = raw as Record<string, unknown>
+      const session = this.sessions[roomId]
+      if (!session) return
+
+      if (message.type === 'pong') return
+
+      if (message.type === 'participants') {
+        const list = Array.isArray(message.participants) ? message.participants : []
+        const aggregated: RoomParticipant[] = []
+        list.forEach((item) => {
+          const participant = buildParticipant(item)
+          if (participant) aggregated.push(participant)
+        })
+        aggregated.sort((a, b) => a.joinedAt - b.joinedAt)
+        session.participants = aggregated
+        return
+      }
+
+      if (message.type === 'chat') {
+        const payload = message.payload
+        if (!payload || typeof payload !== 'object') return
+        const key = session.cryptoKey
+        const rawContent =
+          typeof (payload as Partial<RoomMessage>).content === 'string'
+            ? (payload as Partial<RoomMessage>).content!
+            : ''
+        const isEncrypted = rawContent.startsWith(ENCRYPTION_PREFIX)
+
+        const finish = (decrypted: string) => {
+          const sanitized = sanitizeMessage(payload, decrypted)
+          if (sanitized) this.appendMessage(roomId, sanitized)
+        }
+
+        if (isEncrypted && key) {
+          void decryptContent(key, rawContent).then(finish)
+        } else {
+          // 图片等未加密内容直接使用
+          finish(rawContent)
         }
       }
-      return []
     },
-    // 从环境变量构建 signaling 端点
-    getSignalingEndpoints(roomId: string): string[] {
-      const endpoint = import.meta.env.VITE_SIGNALING_ENDPOINT
+    // 初始化房间会话：建立 WebSocket 连接与加密密钥
+    async initializeSession(roomId: string, user: { id: string; username: string }) {
+      const username = user.username.trim().length > 0 ? user.username.trim() : DEFAULT_USERNAME
+      const localJoinedAt = Date.now()
 
-      if (endpoint) {
-        // 单个端点，自动添加房间参数
-        return [`${endpoint}?room=${roomId}`]
-      }
-      return []
-    },
-    // 初始化房间会话：构造 Yjs 文档与 WebRTC 连接
-    initializeSession(roomId: string, user: { id: string; username: string }) {
-      // 每个房间维护独立的 Yjs 文档
-      const doc = markRaw(new Y.Doc())
-
-      // 从环境变量读取 ICE 服务器配置
-      const iceServers = this.getIceServers()
-
-      // 从环境变量读取 signaling 端点
-      const signaling = this.getSignalingEndpoints(roomId)
-
-      // 创建 WebRTC 提供者，用于同步 Yjs 文档
-      const provider = markRaw(
-        new WebrtcProvider(roomId, doc, {
-          signaling,
-          peerOpts: {
-            trickle: true,
-            config: {
-              // 默认允许直连 P2P，无法直连时再走 TURN 中继，
-              // 避免 relay-only 在部分网络或本地测试时无法建立连接。
-              iceTransportPolicy: 'all',
-              iceServers,
-            },
-          },
-        }),
-      )
-
-      // 共享的消息数组
-      const yMessages = markRaw(doc.getArray<RoomMessage>('messages'))
-
-      const session: RoomSession = {
+      const session: RoomSession = markRaw({
         roomId,
-        doc,
-        provider,
-        yMessages,
+        ws: null,
+        cryptoKey: null,
         messages: [],
         participants: [],
         hasAnnouncedJoin: false,
-        localJoinedAt: Date.now(),
-        cleanup: () => {
-          /* 会在下方替换为真正的清理逻辑 */
-        },
+        localJoinedAt,
+        localUser: { userId: user.id, username, joinedAt: localJoinedAt },
+        reconnectAttempt: 0,
+        reconnectTimer: null,
+        pingTimer: null,
+        closedByUser: false,
+        cleanup: () => {},
+      }) as RoomSession
+
+      // 派生加密密钥（一次，缓存到会话）
+      try {
+        session.cryptoKey = await deriveAesKey(roomId)
+      } catch (error) {
+        console.warn('派生加密密钥失败', error)
       }
 
-      // 调试日志：观察连接与同步状态
-      const onStatus = (event: { connected: boolean }) => {
-        console.log(`[webrtc ${roomId}] connected:`, event.connected)
-      }
-      const onSynced = (event: { synced: boolean }) => {
-        console.log(`[webrtc ${roomId}] synced:`, event.synced)
-      }
-      const onPeers = (event: { added: string[]; removed: string[] }) => {
-        console.log(`[webrtc ${roomId}] peers added:`, event.added, 'removed:', event.removed)
-      }
+      const endpoint = this.getRelayEndpoint(roomId)
 
-      provider.on('status', onStatus)
-      provider.on('synced', onSynced)
-      provider.on('peers', onPeers)
-
-      // 将远端消息同步到 store，并保证按时间排序
-      const updateMessages = () => {
-        const incoming = yMessages
-          .toArray()
-          .map((item) => sanitizeMessage(item, roomId))
-          .filter((item): item is RoomMessage => item !== null)
-          .sort((a, b) => a.timestamp - b.timestamp)
-
-        const currentSession = this.sessions[roomId]
-        if (currentSession) {
-          currentSession.messages = incoming
-        } else {
-          session.messages = incoming
-        }
-      }
-
-      updateMessages()
-      // 监听 Yjs 数组变化，实时更新消息列表
-      yMessages.observe(updateMessages)
-
-      const awareness = provider.awareness
-
-      // 根据 awareness 列表更新参与者信息
-      const updateParticipants = () => {
-        const aggregated: RoomParticipant[] = []
-        awareness.getStates().forEach((state) => {
-          const participant = buildParticipant(state)
-          if (participant) {
-            aggregated.push(participant)
-          }
+      const sendJoin = () => {
+        this.sendToServer(session, {
+          type: 'join',
+          roomId,
+          presence: session.localUser,
         })
-
-        aggregated.sort((a, b) => a.joinedAt - b.joinedAt)
-        const currentSession = this.sessions[roomId]
-        if (currentSession) {
-          currentSession.participants = aggregated
-        } else {
-          session.participants = aggregated
-        }
       }
 
-      awareness.on('change', updateParticipants)
-      // 首次连接时广播自身状态
-      setLocalAwareness(provider, user, session.localJoinedAt)
-      updateParticipants()
+      const startPing = () => {
+        if (session.pingTimer) clearInterval(session.pingTimer)
+        session.pingTimer = setInterval(() => {
+          this.sendToServer(session, { type: 'ping' })
+        }, PING_INTERVAL_MS)
+      }
+
+      const scheduleReconnect = () => {
+        if (session.closedByUser) return
+        if (session.reconnectAttempt >= RECONNECT_MAX_ATTEMPTS) {
+          console.warn(`[relay ${roomId}] 重连次数耗尽，停止重连`)
+          return
+        }
+        const delay = Math.min(
+          RECONNECT_BASE_MS * 2 ** session.reconnectAttempt,
+          RECONNECT_MAX_MS,
+        )
+        session.reconnectAttempt += 1
+        session.reconnectTimer = setTimeout(connectWs, delay)
+      }
+
+      const connectWs = () => {
+        if (session.closedByUser || !endpoint) return
+        let ws: WebSocket
+        try {
+          ws = new WebSocket(endpoint)
+        } catch (error) {
+          console.warn(`[relay ${roomId}] 建立连接失败`, error)
+          scheduleReconnect()
+          return
+        }
+        session.ws = ws
+
+        ws.onopen = () => {
+          console.log(`[relay ${roomId}] connected`)
+          session.reconnectAttempt = 0
+          sendJoin()
+          startPing()
+        }
+
+        ws.onmessage = (event) => {
+          let parsed: unknown
+          try {
+            parsed = JSON.parse(typeof event.data === 'string' ? event.data : '')
+          } catch {
+            return
+          }
+          this.handleServerMessage(roomId, parsed)
+        }
+
+        ws.onclose = () => {
+          if (session.pingTimer) {
+            clearInterval(session.pingTimer)
+            session.pingTimer = null
+          }
+          if (!session.closedByUser) {
+            console.log(`[relay ${roomId}] disconnected, scheduling reconnect`)
+            scheduleReconnect()
+          }
+        }
+
+        ws.onerror = () => {
+          // onerror 后通常紧跟 onclose，由 onclose 统一处理重连
+          try {
+            ws.close()
+          } catch {
+            /* ignore */
+          }
+        }
+      }
 
       session.cleanup = () => {
-        // 解绑监听，防止内存泄露
-        yMessages.unobserve(updateMessages)
-        awareness.off('change', updateParticipants)
-        provider.off('status', onStatus)
-        provider.off('synced', onSynced)
-        provider.off('peers', onPeers)
-        provider.destroy()
-        doc.destroy()
+        session.closedByUser = true
+        if (session.reconnectTimer) {
+          clearTimeout(session.reconnectTimer)
+          session.reconnectTimer = null
+        }
+        if (session.pingTimer) {
+          clearInterval(session.pingTimer)
+          session.pingTimer = null
+        }
+        const ws = session.ws
+        if (ws) {
+          ws.onopen = null
+          ws.onmessage = null
+          ws.onclose = null
+          ws.onerror = null
+          try {
+            if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+              ws.close()
+            }
+          } catch {
+            /* ignore */
+          }
+          session.ws = null
+        }
+        session.cryptoKey = null
+      }
+
+      if (!endpoint) {
+        console.warn(`[relay ${roomId}] 未配置 VITE_SIGNALING_ENDPOINT，无法连接`)
+      } else {
+        connectWs()
       }
 
       return session

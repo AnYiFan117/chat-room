@@ -101,7 +101,7 @@ const leaveActiveRoom = () => {
   activeRoomId.value = ''
 }
 
-const joinRoomFlow = (roomId: string) => {
+const joinRoomFlow = async (roomId: string) => {
   ensureUsernameLoaded()
   ensureSelfIdentity()
   roomStore.ensureLoaded()
@@ -110,7 +110,7 @@ const joinRoomFlow = (roomId: string) => {
 
   let session
   try {
-    session = roomStore.connect(roomId, {
+    session = await roomStore.connect(roomId, {
       id: selfId.value,
       username: username.value,
     })
